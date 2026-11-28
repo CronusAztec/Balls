@@ -47,6 +47,8 @@ import { DEFAULT_THUD_FREQUENCY, THUD_TONE, scheduleThudTone, thudBend, thudLeve
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import { BullseyeLayer, RING_DONE_ALPHA, RING_FLASH_MS, RING_LIT_ALPHA, RING_NEWEST_ALPHA, bullseyeLitRings, scoreColor } from "@/components/simulator/bullseyeRenderer"; // --- bullseye-lit ---
+import { fakeCanvas } from "./fakeCanvas"; // --- bullseye-lit ---
 
 /**
  * Bullseye (feature gerald-bullseye): the settings / URL / presets, the scoring geometry (rings, scores, the bull), the
@@ -772,5 +774,64 @@ describe("the thud", () => {
     playSoundEvent(audio, { type: "hit", wallIndex: 0, frequency: 523, race: "fanfare" }, () => calls.push("break"));
     playSoundEvent(audio, { type: "hit", wallIndex: 0, frequency: 330 }, () => calls.push("break"));
     expect(calls).toEqual(["thud 98 0.7", "fanfare 523", "hit 0 330"]);
+  });
+});
+
+/* ------------------------------------------------------------------ --- bullseye-lit --- (round two, B9b) */
+
+// The stillest clip of its group (m2-07): a ring lit for 450 ms on a landing, then the board as it was. Every ring a shot landed in
+// now stays lit in its score's colour, the newest landing's the brightest, and all of them at full glow under the TOTAL card.
+describe("--- bullseye-lit --- the hit rings lit", () => {
+  /** The target's lit fills (`fill("evenodd")`) of one world pass, with their colour and alpha. */
+  function litFills(engine: PhysicsEngine) {
+    const canvas = fakeCanvas(800, 600);
+    const ctx = canvas.ctx;
+    const fills: { style: string; alpha: number }[] = [];
+    const fill = ctx.fill as (...a: unknown[]) => void;
+    ctx.fill = (...a: unknown[]) => {
+      if (a[0] === "evenodd") fills.push({ style: String(ctx.fillStyle), alpha: ctx.globalAlpha });
+      fill(...a);
+    };
+    new BullseyeLayer().drawWorld(ctx as unknown as CanvasRenderingContext2D, engine.getBullseyeView(), { wallAlpha: (a) => `rgba(255, 255, 255, ${a})`, wallThickness: 2, showWallGlow: true });
+    return fills;
+  }
+  /** Steps until `when` holds, at most `maxSec`. */
+  function until(engine: PhysicsEngine, when: () => boolean, maxSec = 60) {
+    for (let i = 0; i < maxSec * 60 && !when(); i++) engine.update(STEP, 0);
+    expect(when()).toBe(true);
+  }
+
+  it("lights every ring a landed shot hit, in its score's colour, the newest landing's brightest", () => {
+    const engine = bullseyeEngine({ shots: 10 }, 7);
+    const v = engine.getBullseyeView();
+    expect(litFills(engine)).toEqual([]); // (nothing landed yet)
+    const n = Math.min(v.ringHitMs.length, v.settings.rings);
+    let checked = 0;
+    for (let landed = 1; landed <= 6; landed++) {
+      // a moment after the landing, its 450 ms flash over: only the lit rings fill
+      until(engine, () => v.landed >= landed && v.timeMs - v.shotLandMs[v.lastShot] >= RING_FLASH_MS);
+      if (v.landed > landed) continue;
+      const hit = new Set<number>();
+      for (let k = 0; k < v.shots; k++) if (v.shotState[k] === SHOT_LANDED && v.shotRing[k] >= 0) hit.add(v.shotRing[k]);
+      const lit = bullseyeLitRings(v, n, new Uint8Array(n));
+      expect([...lit].flatMap((x, i) => (x ? [i] : []))).toEqual([...hit].sort((a, b) => a - b));
+      const want = [...hit].sort((a, b) => a - b).map((i) => ({ style: scoreColor(ringScore(i, v.settings.rings)), alpha: i === v.lastRing ? RING_NEWEST_ALPHA : RING_LIT_ALPHA }));
+      expect(litFills(engine)).toEqual(want);
+      checked++;
+    }
+    expect(checked).toBeGreaterThanOrEqual(4);
+  });
+
+  it("glows every lit ring fully once all the shots are down, and draws the same board for the same moment", () => {
+    const engine = bullseyeEngine({ shots: 6 }, 3);
+    const v = engine.getBullseyeView();
+    until(engine, () => v.allLanded && v.timeMs - v.shotLandMs[v.lastShot] >= RING_FLASH_MS, 90);
+    const fills = litFills(engine);
+    expect(fills.length).toBeGreaterThan(0);
+    for (const f of fills) expect(f.alpha).toBe(RING_DONE_ALPHA);
+    expect(JSON.stringify(litFills(engine))).toBe(JSON.stringify(fills));
+    // a landing off the target lights nothing: a scratch array cleared before each count
+    const out = new Uint8Array(4).fill(1);
+    expect([...bullseyeLitRings({ shots: 0, shotState: v.shotState, shotRing: v.shotRing }, 4, out)]).toEqual([0, 0, 0, 0]);
   });
 });

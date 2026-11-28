@@ -1,4 +1,4 @@
-import { KIND_BUMPER, SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye";
+import { KIND_BUMPER, SHOT_LANDED, ringScore, type BullseyeView } from "@/lib/physics/modes/bullseye";
 
 /**
  * Canvas drawing of Bullseye (feature gerald-bullseye, lib/physics/modes/bullseye.ts). The canvas calls, per frame:
@@ -62,6 +62,18 @@ export const RING_FLASH_MS = 450;
 export const POPUP_MS = 1100;
 export const BULLSEYE_MS = 1800;
 export const RECOIL_MS = 220;
+// --- badge-clear --- (round two, B-g3 review) The score popups' geometry, shared with the watermark's HUD report (liveMarkHud.ts
+// `noteBullseyePile()`), so the badge keeps above the popups of the shots landed at the target's ends and the two cannot drift.
+/** A popup's font size: 4 % of the field's height, at least 12 px. */
+export function popupFontSize(fieldHeight: number): number {
+  return Math.max(12, 0.04 * fieldHeight);
+}
+/** A popup's centre starts `POPUP_LIFT` font sizes above its landing and rises `POPUP_RISE` more over `POPUP_MS`. */
+export const POPUP_LIFT = 1.2;
+export const POPUP_RISE = 1.6;
+/** How far above its landing a popup's text reaches at the top of its rise (font sizes): the lift, the rise, half the text's height and its outline. */
+export const POPUP_REACH = POPUP_LIFT + POPUP_RISE + 0.6;
+// --- end badge-clear ---
 /**
  * --- finales-in-clip --- (review fix) The final card and a BULLSEYE! of the last shots never share the field (the page's last shot is
  * the bull's: they came up together, the callout over the card's top edge). Once every shot has landed the callout holds and fades
@@ -80,11 +92,35 @@ export function bullseyeCardShown(view: Pick<BullseyeView, "allLanded" | "timeMs
 const TWO_PI = Math.PI * 2;
 const RAYS = 12;
 
+// --- bullseye-lit --- (round two, B9b)
+/*
+ * The hit rings lit (draw only): every ring a shot has landed in stays lit in its score's colour – the popups' colours, lime for
+ * the bull – so the board fills in as the shots land; the newest landing's ring is the brightest until the next one, and once
+ * every shot is down (TOTAL) the lit rings glow fully under the card. From the view's shots alone, so a replay draws the same.
+ */
+/** A lit ring's fill alpha: hit earlier, the newest landing's, and every lit ring once all the shots have landed. */
+export const RING_LIT_ALPHA = 0.3;
+export const RING_NEWEST_ALPHA = 0.5;
+export const RING_DONE_ALPHA = 0.55;
+
+/** The rings (0 = the bull, below `n`) that landed shots hit, as 1s in `out` (cleared first, `n` long at least). */
+export function bullseyeLitRings(view: Pick<BullseyeView, "shots" | "shotState" | "shotRing">, n: number, out: Uint8Array): Uint8Array {
+  out.fill(0, 0, Math.min(n, out.length));
+  for (let k = 0; k < view.shots; k++) {
+    if (view.shotState[k] !== SHOT_LANDED) continue;
+    const ring = view.shotRing[k];
+    if (ring >= 0 && ring < n && ring < out.length) out[ring] = 1;
+  }
+  return out;
+}
+// --- end bullseye-lit ---
+
 export class BullseyeLayer {
   /** "+7" strings by score, so a frame builds none. */
   private readonly popupText: string[] = [];
   private shotKey = "";
   private shotText = "";
+  private lit = new Uint8Array(16); // --- bullseye-lit --- (the hit rings, reused every frame)
 
   private popup(score: number, miss: string) {
     if (score <= 0) return miss;
@@ -146,6 +182,31 @@ export class BullseyeLayer {
       ctx.ellipse(tx, ty, k * R, k * D, 0, 0, TWO_PI);
       ctx.stroke();
     }
+    // --- bullseye-lit --- the rings the shots hit, lit in their score's colour (the newest landing's brightest), outlined
+    if (this.lit.length < n) this.lit = new Uint8Array(Math.ceil(n));
+    const lit = bullseyeLitRings(view, n, this.lit);
+    for (let i = 0; i < n; i++) {
+      if (lit[i] !== 1) continue;
+      const outer = (i + 1) / n;
+      const inner = i / n;
+      const color = scoreColor(ringScore(i, view.settings.rings));
+      ctx.globalAlpha = view.allLanded ? RING_DONE_ALPHA : i === view.lastRing ? RING_NEWEST_ALPHA : RING_LIT_ALPHA;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(tx, ty, outer * R, outer * D, 0, 0, TWO_PI);
+      if (inner > 0) {
+        ctx.moveTo(tx + inner * R, ty);
+        ctx.ellipse(tx, ty, inner * R, inner * D, 0, 0, TWO_PI, true);
+      }
+      ctx.fill("evenodd");
+      ctx.globalAlpha = i === view.lastRing || view.allLanded ? 0.95 : 0.6;
+      ctx.lineWidth = i === view.lastRing ? 2.5 : 1.5;
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(tx, ty, outer * R, outer * D, 0, 0, TWO_PI);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     for (let i = 0; i < n; i++) {
       const age = now - view.ringHitMs[i];
       if (!(age >= 0 && age < RING_FLASH_MS)) continue;
@@ -168,6 +229,7 @@ export class BullseyeLayer {
         ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1; // (--- bullseye-lit ---)
     ctx.lineWidth = Math.max(1.5, opts.wallThickness);
     ctx.strokeStyle = opts.wallAlpha(0.85);
     ctx.beginPath();
@@ -241,7 +303,7 @@ export class BullseyeLayer {
       ctx.stroke();
     }
     // The popups: the landing's score rising and fading.
-    const fs = Math.max(12, 0.04 * L.fieldHeight);
+    const fs = popupFontSize(L.fieldHeight); // (--- badge-clear --- shared with the HUD report)
     ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -256,7 +318,7 @@ export class BullseyeLayer {
       const score = view.shotScore[k];
       const text = this.popup(score, labels.miss);
       const x = Math.max(L.left + fs, Math.min(L.right - fs, view.shotX[k]));
-      const y = view.shotY[k] - 1.2 * fs - 1.6 * fs * (1 - (1 - u) * (1 - u));
+      const y = view.shotY[k] - POPUP_LIFT * fs - POPUP_RISE * fs * (1 - (1 - u) * (1 - u));
       ctx.globalAlpha = u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3;
       ctx.strokeText(text, x, y);
       ctx.fillStyle = scoreColor(score);

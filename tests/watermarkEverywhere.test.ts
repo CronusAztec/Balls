@@ -3,9 +3,17 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
 import { BADGE_MIN_HEIGHT, BADGE_SWITCH_MS, badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
-import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
-import { noteCornerReadouts, noteEdgeText, noteJourneyHud, noteRaceHud, noteTitleBlock } from "@/components/simulator/liveMarkHud";
+import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, mapLiveHud, placeLiveBadge, placeVideoBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteFlCardCaptions, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type FlCardHud, type HudView } from "@/components/simulator/liveMarkHud";
+import { ANTI_LABEL_MS, drawCollideOverlay, type CollideLabelPlate } from "@/components/simulator/collideRenderer"; // --- badge-clear ---
+import { SHOT_LANDED, SHOT_WAITING, buildBullseyeLayout } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
+import { BullseyeLayer, DEFAULT_BULLSEYE_LABELS, POPUP_MS, POPUP_REACH, popupFontSize } from "@/components/simulator/bullseyeRenderer"; // --- badge-clear --- (B-g3 review: the score popups)
+import type { BullseyeView } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
+import { buildCollideField, type CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
+import { buildPendulumField, buildPendulumRig, pendulumFrequencies, resolvePendulumSettings } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
 import { FL_ARENA_FRAC, FL_ARENA_TOP } from "@/lib/physics/modes/fightLeague";
+import { flHudLayout } from "@/lib/physics/modes/fightLeagueFx"; // --- fl-card-badge ---
+import { FL_NOIR_ARENA_FRAC, FL_NOIR_ARENA_TOP, FL_NOIR_BLOCK_TOP, FL_NOIR_TITLE_H, FL_NOIR_TITLE_Y } from "@/components/simulator/fightLeague/noir"; // --- fl-card-badge ---
 import { signForeignLicense, signTestLicense } from "../scripts/lib/test-license.mjs";
 import { drawsOf, fakeCanvas, fakeDocument, type FakeCanvas } from "./fakeCanvas";
 import en from "../messages/en.json";
@@ -785,5 +793,380 @@ describe("--- low-findings --- the video's own badge at export resolution, clear
   it("names only the message keys the watermark's components use (no dead copy)", () => {
     const used = (read("src/components/billing/WatermarkBadge.tsx") + read("src/components/simulator/sections/FreeWatermarkNote.tsx")).match(/\bt\("(\w+)"/g)!.map((m) => m.slice(3, -1));
     for (const messages of [en, pl, es]) expect(Object.keys(messages.Watermark).sort()).toEqual([...new Set(used)].sort());
+  });
+});
+
+// --- badge-clear --- (round two, B7a) The payoffs the badge kept landing on in the exports: the multipliers board's HOME count,
+// Bullseye's pile at the target's ends, Collision Playground's heap and Pendulum Wave's support bar once IN LINE! takes the bottom.
+describe("--- badge-clear --- the badge keeps off the payoffs a mode draws in its world", () => {
+  /** A 450 px source square at the canvas' origin, and the 1080 × 1920 export it is filmed into. */
+  const S = 450;
+  const SQ = { x0: 0, y0: 0, side: S };
+  const identity: HudView = { scale: 1, tx: 0, ty: 0 };
+  const ew = 1080;
+  const eh = 1920;
+  const exportSq = exportSquare(ew, eh);
+  const metrics = badgeMetrics(exportSq.width);
+  /** Where the badge goes live (in the source square) and in the export (mapped back into the source square's px). */
+  const badges = (hud: LiveHud, clipMs: number) => {
+    const live = liveBadgeBox({ area: { x: 0, y: 0, width: S, height: S } });
+    const l = placeLiveBadge(live, Math.round(4.4 * live.height), live.height, clipMs, hud, placement());
+    const mapped = mapLiveHud(hud, { x: 0, y: 0, side: S }, exportSq, new LiveHud());
+    const v = placeVideoBadge(ew, eh, exportSq, { width: Math.round(4.4 * metrics.height), height: metrics.height, inset: metrics.inset }, clipMs, mapped, placement());
+    const k = S / exportSq.width;
+    const video = { x: (v.x - exportSq.x) * k, y: (v.y - exportSq.y) * k, width: v.width * k, height: v.height * k, corner: v.corner, free: v.free };
+    return { live: l, video };
+  };
+
+  it("the multipliers board's HOME zone on screen is a band along the bottom: the badge sits above HOME and its count", () => {
+    const homeTop = 0.78 * S;
+    const hud = new LiveHud().reset(1);
+    noteHomeBand(hud, SQ, homeTop);
+    expect(hud.bottom).toBe(homeTop);
+    for (const t of [1000, 7000]) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) {
+        expect(b.corner.startsWith("bottom"), `${t}`).toBe(true);
+        expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(homeTop + 0.5);
+      }
+    }
+    // below the screen (the corner chip shows the count) or scrolled past its top: no band
+    for (const off of [S + 1, 1.5 * S, -1]) {
+      const none = new LiveHud().reset(1);
+      noteHomeBand(none, SQ, off);
+      expect(none.bottom).toBe(Number.POSITIVE_INFINITY);
+    }
+  });
+
+  it("Bullseye: a band from the target's top or the highest landed ball, so the badge keeps above the pile at the target's ends", () => {
+    const L = buildBullseyeLayout(S, S, 6, 0.5, 1);
+    const shotY = new Float64Array(3);
+    const shotState = new Uint8Array([SHOT_LANDED, SHOT_LANDED, SHOT_WAITING]);
+    shotY[0] = L.floorY - L.ballRadius; // on the landing line: under the target's top
+    shotY[1] = L.floorY - 9 * L.ballRadius; // a stack of balls, above the target's top
+    shotY[2] = 0; // not landed yet: ignored
+    const view = { layout: L, shots: 2, shotState: new Uint8Array([SHOT_LANDED, SHOT_WAITING]), shotY };
+    // (B-g3 review) raised by the score popups' reach, so the badge keeps above the "+N" of a shot landed at an end too
+    const reach = POPUP_REACH * popupFontSize(L.fieldHeight);
+    expect(reach).toBeGreaterThan(0);
+    const hud = new LiveHud().reset(1);
+    noteBullseyePile(hud, view, identity);
+    expect(hud.bottom).toBeCloseTo(L.floorY - L.targetDepth - reach, 9);
+    const pile = L.floorY - 10 * L.ballRadius;
+    expect(pile).toBeLessThan(L.floorY - L.targetDepth);
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, identity);
+    expect(hud.bottom).toBeCloseTo(pile - reach, 9);
+    for (const t of [1000, 7000]) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(pile - reach + 0.5);
+    }
+    // through a zoomed, followed camera the band moves with the picture
+    const cam: HudView = { scale: 1.5, tx: -100, ty: -60 };
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, cam);
+    expect(hud.bottom).toBeCloseTo((pile - reach) * 1.5 - 60, 9);
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: null, shots: 0, shotState, shotY }, identity);
+    expect(hud.bottom).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("Bullseye: the score popups of shots landed at the target's ends rise clear of the badge, live and in the export (before: under it)", () => {
+    // (B-g3 review) three shots landed at once: one on the landing line at each end of the target and one stacked on the right-hand
+    // one; their "+N" drawn by the renderer itself at every age of the rise, each text's box against the badge in both windows
+    const L = buildBullseyeLayout(S, S, 6, 0.5, 1);
+    const r = L.ballRadius;
+    const ends = [L.cx - L.targetRadius, L.cx + L.targetRadius, L.cx + L.targetRadius];
+    const view = {
+      layout: L,
+      timeMs: 0,
+      bullseyeMs: Number.NEGATIVE_INFINITY,
+      shots: 3,
+      shotState: new Uint8Array([SHOT_LANDED, SHOT_LANDED, SHOT_LANDED]),
+      shotX: Float64Array.from(ends),
+      shotY: Float64Array.from([L.floorY - r, L.floorY - r, L.floorY - 3 * r]),
+      shotLandMs: new Float64Array(3),
+      shotScore: Int8Array.from([3, 2, 10]),
+    } as unknown as BullseyeView;
+    const layer = new BullseyeLayer();
+    const texts: FrameRect[] = [];
+    for (let age = 0; age < POPUP_MS; age += POPUP_MS / 20) {
+      const canvas = fakeCanvas(S, S);
+      const ctx = canvas.getContext("2d");
+      view.timeMs = age;
+      layer.drawEffects(ctx as unknown as CanvasRenderingContext2D, view, DEFAULT_BULLSEYE_LABELS);
+      const fs = popupFontSize(L.fieldHeight);
+      for (const c of ctx.calls.filter((call) => call.name === "fillText")) {
+        const [text, x, y] = c.args as [string, number, number];
+        // the glyphs' box with its outline: about 0.62 of a font size a character wide, a font size tall round the middle
+        const w = 0.62 * text.length * fs + 0.18 * fs;
+        texts.push({ x: x - w / 2, y: y - 0.59 * fs, width: w, height: 1.18 * fs });
+      }
+    }
+    expect(texts.length).toBe(3 * 20);
+    const hud = new LiveHud().reset(1);
+    noteBullseyePile(hud, view, identity);
+    for (const t of [1000, 7000, 13_000, 19_000]) {
+      const { live, video } = badges(hud, t);
+      for (const [where, b] of [["live", live], ["export", video]] as const) {
+        expect([where, t, b.free]).toEqual([where, t, true]);
+        for (const box of texts) expect(overlaps(b, box), `${where} ${t} ${JSON.stringify(b)} vs ${JSON.stringify(box)}`).toBe(false);
+      }
+    }
+    // the band at the pile's top alone (B7a's report): the export's badge sat on the popups at the ends
+    const before = new LiveHud().reset(1);
+    before.bottomBand(Math.min(L.floorY - L.targetDepth, L.floorY - 4 * r));
+    expect([1000, 7000].some((t) => texts.some((box) => overlaps(badges(before, t).video, box)))).toBe(true);
+  });
+
+  it("Collision Playground: from the first orb out of a pouring jar the floor under it is held, and the badge takes a top corner beside the jar", () => {
+    const f = buildCollideField(S, S, "circle", true);
+    const view = (pourActive: boolean, left: number): Pick<CollideView, "field" | "pourActive" | "left" | "count"> => ({ field: f, pourActive, left, count: 300 });
+    const hud = new LiveHud().reset(1);
+    noteCollideHeap(hud, view(false, 300), identity);
+    noteCollideHeap(hud, view(true, 300), identity); // open, nothing out yet
+    expect(hud.count).toBe(0);
+    noteCollideHeap(hud, view(true, 299), identity);
+    expect(hud.count).toBe(1);
+    expect(hud.blocks.slice(0, 4)).toEqual([f.catchLeft, f.bottom, f.catchRight - f.catchLeft, f.catchBottom - f.bottom]);
+    const heap = { x: f.catchLeft, y: f.bottom, width: f.catchRight - f.catchLeft, height: f.catchBottom - f.bottom };
+    /** The point of `r` nearest the jar's centre is outside the jar. */
+    const clearOfJar = (r: FrameRect) => Math.hypot(Math.max(r.x, Math.min(f.cx, r.x + r.width)) - f.cx, Math.max(r.y, Math.min(f.cy, r.y + r.height)) - f.cy) > f.radius;
+    for (const [t, side] of [[1000, "top-left"], [7000, "top-right"]] as const) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) {
+        expect(b.corner, `${t}`).toBe(side);
+        expect(overlaps(b, heap), `${t}`).toBe(false);
+      }
+      expect(clearOfJar(live), `${t} ${JSON.stringify(live)}`).toBe(true); // (the export's top right, pushed in by the platforms' safe zone, meets the jar's rim)
+    }
+    // the ring (no jar) and an empty field report nothing
+    hud.reset(1);
+    noteCollideHeap(hud, { field: null, pourActive: true, left: 0, count: 300 }, identity);
+    expect(hud.count).toBe(0);
+  });
+
+  it("Collision Playground's ANTI-COLLISION caption sits on a plate across the middle, drawn under the words and reported while it shows", () => {
+    const canvas = fakeCanvas(800, 450);
+    const ctx = canvas.getContext("2d");
+    const plate: CollideLabelPlate = { x: 0, y: 0, w: 0, h: 0 };
+    const v = { antiActive: true, antiTick: 0, tick: 50, tickMs: 10 } as unknown as CollideView; // 500 ms after the switch
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, v, "ANTI-COLLISION", plate);
+    expect(plate.w).toBeGreaterThan(0);
+    expect(plate.x + plate.w / 2).toBeCloseTo(400, 6);
+    expect(plate.y + plate.h / 2).toBeCloseTo(225, 6);
+    const names = ctx.calls.map((c) => c.name);
+    const text = names.indexOf("fillText");
+    expect(text).toBeGreaterThan(names.indexOf("fill"));
+    expect(text).toBeGreaterThan(names.indexOf("stroke"));
+    // the words fit on it
+    const words = ctx.calls[text];
+    expect(words.args.slice(0, 3)).toEqual(["ANTI-COLLISION", 400, 225]);
+    // gone with the caption, and nothing while the switch has not happened
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, { ...v, tick: ANTI_LABEL_MS / 10 + 1 } as unknown as CollideView, "ANTI-COLLISION", plate);
+    expect(plate.w).toBe(0);
+    plate.w = 5;
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, { ...v, antiActive: false } as unknown as CollideView, "ANTI-COLLISION", plate);
+    expect(plate.w).toBe(0);
+  });
+
+  it("Pendulum Wave: the support bar is held, so IN LINE! at the bottom no longer sends the badge onto the bar", () => {
+    const settings = resolvePendulumSettings({ layout: "row" });
+    const field = buildPendulumField(S, S);
+    const rig = buildPendulumRig(field, settings, 8, pendulumFrequencies(settings));
+    const n = rig.anchorX.length;
+    const bar = { x: rig.anchorX[0] - 3 * rig.bobRadius, y: rig.barY - 1, width: rig.anchorX[n - 1] - rig.anchorX[0] + 6 * rig.bobRadius, height: 2 };
+    for (const t of [1000, 7000, 25_000, 31_000]) {
+      const hud = new LiveHud().reset(1);
+      hud.block(0.225 * S, 0.67 * S, 0.55 * S, 0.26 * S); // IN LINE! under the row of bobs (centred at 0.8 of the square)
+      notePendulumBar(hud, { rig }, identity);
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) expect(overlaps(b, bar), `${t} ${JSON.stringify(b)}`).toBe(false);
+      // without the report the export's badge went onto the bar
+      const before = new LiveHud().reset(1);
+      before.block(0.225 * S, 0.67 * S, 0.55 * S, 0.26 * S);
+      expect(overlaps(badges(before, t).video, bar), `${t}`).toBe(true);
+    }
+    // with captions along the bottom as well, the verdict and a held bar would leave the export's badge no corner: it would fall
+    // back to the bottom of the square, over the captions' words – so the canvas holds the bar only while nothing but the verdict
+    // holds the bottom of the square (there the badge keeps its old place)
+    const captions = new LiveHud().reset(1);
+    captions.bottomBand(0.85 * S);
+    captions.block(0.225 * S, 0.62 * S, 0.55 * S, 0.22 * S);
+    expect(badges(captions, 1000).video.free).toBe(true);
+    notePendulumBar(captions, { rig }, identity);
+    const fallen = badges(captions, 1000).video;
+    expect([fallen.free, fallen.y + fallen.height > 0.85 * S]).toEqual([false, true]);
+    // the other layouts have no bar
+    for (const layout of ["arc", "circle", "galaxy", "sliding", "bouncing"] as const) {
+      const s = resolvePendulumSettings({ layout });
+      const hud = new LiveHud().reset(1);
+      notePendulumBar(hud, { rig: buildPendulumRig(field, s, 8, pendulumFrequencies(s)) }, identity);
+      expect(hud.count, layout).toBe(0);
+    }
+  });
+
+  it("is wired: the canvas reports them with the frame's HUD, the world ones through the camera's view", () => {
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const hud = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(hud).toMatch(/if \(multBoard\?\.board\) noteHomeBand\(hud, liveSquare, multBoard\.board\.homeY - multBoard\.cameraY\);/);
+    expect(hud).toMatch(/cameraTransform\(cam\.view, cx, cy, 0, 0, liveWorld\);[\s\S]*?noteBullseyePile\(hud, bullseyeView, liveWorld\);/);
+    expect(hud).toMatch(/noteCollideHeap\(hud, engine\.getCollideView\(\), liveWorld\);\s*if \(collidePlate\.w > 0\) hud\.block\(collidePlate\.x, collidePlate\.y, collidePlate\.w, collidePlate\.h\);/);
+    // the bar only while nothing but the verdict holds the bottom (after every band along it, before the Bottom Text)
+    expect(hud).toMatch(/hud\.bottomBand\(ringLineBottom\);\s*if \(isPendulum && !Number\.isFinite\(hud\.bottom\) && !p\.bottomText\) notePendulumBar\(hud, engine\.getPendulumView\(\), liveWorld\);/);
+    expect(body).toMatch(/drawCollideOverlay\([^;]*, collidePlate\);/);
+  });
+});
+
+// --- fl-card-badge --- (round two, B7b) Fight League's end card covers the whole arena: the badge sat on its lower corner and, in
+// its right-hand window, over the end of the card's line. While the card is up the HUD report sends it into the strip under the
+// ability boxes (or the noir stats block) – where that strip holds it: live and in a portrait export.
+describe("--- fl-card-badge --- Fight League's end card keeps the badge in the strip under the boxes", () => {
+  const S = 450;
+  const SQ = { x0: 0, y0: 0, side: S };
+  /** The fan-made line's width in the source square: the English one measured in the 1080 × 1920 render (250 px), a wider one. */
+  const FAN_EN = (250 / 1080) * S;
+  const FAN_WIDE = 0.32 * S;
+  const lay = flHudLayout(S, 2, "1v1", true, 20);
+  /** The two stages: the noir reel (the default: the title above, the stats block below a 0.6 S arena) and the boxes' stages. */
+  const stages = {
+    noir: { top: (FL_NOIR_TITLE_Y + FL_NOIR_TITLE_H / 2) * S, card: { x: (0.5 - FL_NOIR_ARENA_FRAC / 2) * S, y: FL_NOIR_ARENA_TOP * S, w: FL_NOIR_ARENA_FRAC * S, h: FL_NOIR_ARENA_FRAC * S }, boxesTop: FL_NOIR_BLOCK_TOP * S },
+    boxes: { top: lay.band, card: { x: lay.arena.x, y: lay.arena.y, w: lay.arena.w, h: lay.arena.h }, boxesTop: lay.boxesTop },
+  };
+  const layerOf = (stage: keyof typeof stages, fanW: number, card = true): FlCardHud => {
+    const st = stages[stage];
+    const fanY = S * (1 - 0.025 - 0.052 / 2);
+    return { boxesTop: st.boxesTop, boxesBottom: lay.boxesBottom, card: card ? st.card : { x: 0, y: 0, w: 0, h: 0 }, fanLine: { x: S / 2 - fanW / 2, y: fanY - 0.6 * 0.016 * S, w: fanW, h: 1.2 * 0.016 * S } };
+  };
+  const rect = (r: { x: number; y: number; w: number; h: number }): FrameRect => ({ x: r.x, y: r.y, width: r.w, height: r.h });
+  /** The frame's HUD as the canvas reports it: the title or names band, then the card report or the boxes' band (as before). */
+  const report = (fl: FlCardHud, top: number, recording: { width: number; height: number } | null, withCard = true) => {
+    const hud = new LiveHud().reset(1);
+    hud.topBand(top);
+    const reported = withCard && noteFightLeagueCard(hud, SQ, fl, recording);
+    if (!reported) hud.bottomBand(fl.boxesTop);
+    return { hud, reported };
+  };
+  /** The badge live (recording null) or in a `w` × `h` export, in the source square's px. */
+  const badgeIn = (hud: LiveHud, clipMs: number, recording: { width: number; height: number } | null) => {
+    if (!recording) {
+      const live = liveBadgeBox({ area: { x: 0, y: 0, width: S, height: S } });
+      return placeLiveBadge(live, Math.round(4.4 * live.height), live.height, clipMs, hud, placement());
+    }
+    const sq = exportSquare(recording.width, recording.height);
+    const m = badgeMetrics(sq.width);
+    const mapped = mapLiveHud(hud, { x: 0, y: 0, side: S }, sq, new LiveHud());
+    const v = placeVideoBadge(recording.width, recording.height, sq, { width: Math.round(4.4 * m.height), height: m.height, inset: m.inset }, clipMs, mapped, placement());
+    const k = S / sq.width;
+    return { x: (v.x - sq.x) * k, y: (v.y - sq.y) * k, width: v.width * k, height: v.height * k, corner: v.corner, free: v.free };
+  };
+  const PORTRAIT = { width: 1080, height: 1920 };
+
+  it("live and in a portrait export: the badge takes a bottom corner of the strip, clear of the card, the boxes and the fan-made line (before: on the card)", () => {
+    for (const stage of ["noir", "boxes"] as const) {
+      for (const recording of [null, PORTRAIT]) {
+        const fl = layerOf(stage, FAN_EN);
+        const { hud, reported } = report(fl, stages[stage].top, recording);
+        expect([stage, reported, hud.bottom]).toEqual([stage, true, Number.POSITIVE_INFINITY]);
+        const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+        for (const [t, side] of [[1000, "bottom-left"], [7000, "bottom-right"], [13_000, "bottom-left"]] as const) {
+          const label = `${stage} ${recording ? "export" : "live"} ${t}`;
+          const b = badgeIn(hud, t, recording);
+          expect([label, b.corner, b.free]).toEqual([label, side, true]);
+          expect(b.y, label).toBeGreaterThanOrEqual(fl.boxesBottom - 0.5);
+          for (const r of [rect(fl.card), boxes, rect(fl.fanLine)]) expect(overlaps(b, r), `${label} ${JSON.stringify(r)}`).toBe(false);
+          // the boxes' band alone (the report before): the badge on the card, in the band above the boxes
+          const before = report(fl, stages[stage].top, recording, false).hud;
+          const old = badgeIn(before, t, recording);
+          expect([label, overlaps(old, rect(fl.card)), old.y + old.height <= fl.boxesTop + 0.5]).toEqual([label, true, true]);
+        }
+      }
+    }
+  });
+
+  it("a fan-made line long enough to reach the right-hand corner (a longer language's): the badge keeps the left-hand one of the strip", () => {
+    const fl = layerOf("noir", FAN_WIDE);
+    const { hud } = report(fl, stages.noir.top, PORTRAIT);
+    const b = badgeIn(hud, 7000, PORTRAIT);
+    expect([b.corner, b.free]).toEqual(["bottom-left", true]);
+    expect(overlaps(b, rect(fl.fanLine))).toBe(false);
+    expect(overlaps(b, rect(fl.card))).toBe(false);
+    // live the strip's right-hand corner is far enough out
+    const live = badgeIn(report(fl, stages.noir.top, null).hud, 7000, null);
+    expect([live.corner, overlaps(live, rect(fl.fanLine))]).toEqual(["bottom-right", false]);
+  });
+
+  it("with bottom captions (kept above the boxes) and a longer language's fan-made line: the captions are a block and the badge keeps the strip, clear of the line (before: its fallback, on the line)", () => {
+    // (B-g3 review) the Spanish line ("Parodia hecha por fans. Sin afiliación.", about 305 px of the 1080 px render): 0.28 of the square
+    const fl = layerOf("noir", 0.28 * S);
+    const capBottom = fl.boxesTop - 0.005 * S;
+    const capTop = capBottom - 0.09 * S;
+    const captions = { x: 0, y: capTop, width: S, height: capBottom - capTop };
+    const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+    for (const recording of [null, PORTRAIT]) {
+      const { hud, reported } = report(fl, stages.noir.top, recording);
+      expect(reported).toBe(true);
+      expect(noteFlCardCaptions(hud, SQ, fl, recording, S, capTop, capBottom)).toBe(true);
+      expect(hud.bottom).toBe(Number.POSITIVE_INFINITY);
+      for (const t of [1000, 7000, 13_000, 19_000]) {
+        const label = `${recording ? "export" : "live"} ${t}`;
+        const b = badgeIn(hud, t, recording);
+        expect([label, b.free]).toEqual([label, true]);
+        expect(b.y, label).toBeGreaterThanOrEqual(fl.boxesBottom - 0.5);
+        for (const r of [rect(fl.card), boxes, rect(fl.fanLine), captions]) expect(overlaps(b, r), `${label} ${JSON.stringify(r)}`).toBe(false);
+      }
+    }
+    // their band (the report before): the free band ended above the strip, no corner was off the card, and the export's badge fell
+    // back to its side's bottom corner of the whole zone – in the right-hand window onto the fan-made line
+    const before = report(fl, stages.noir.top, PORTRAIT).hud;
+    before.bottomBand(capTop);
+    const old = badgeIn(before, 7000, PORTRAIT);
+    expect([old.free, overlaps(old, rect(fl.fanLine))]).toEqual([false, true]);
+    // where the strip does not hold the badge (a square export, or no card) nothing is reported: the caller keeps their band
+    for (const [layer, recording] of [[fl, { width: 1080, height: 1080 }], [layerOf("noir", 0.28 * S, false), PORTRAIT]] as const) {
+      const none = new LiveHud().reset(1);
+      expect(noteFlCardCaptions(none, SQ, layer, recording, S, capTop, capBottom)).toBe(false);
+      expect(none.count).toBe(0);
+    }
+    // wired: the canvas reports the bottom captions this way while Fight League plays, their band otherwise
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const wired = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(wired).toMatch(/if \(captionLayer\.usesBottom && !\(flView && noteFlCardCaptions\(hud, liveSquare, flLayer, recording \? exportSizeRef\.current : null, size\.width, captionLayer\.stackEdges\.bottom, captionLayer\.starts\.bottom\)\)\) hud\.bottomBand\(captionLayer\.stackEdges\.bottom\);/);
+    expect(wired.indexOf("noteFightLeagueCard(")).toBeLessThan(wired.indexOf("noteFlCardCaptions("));
+  });
+
+  it("a square or landscape export's safe zone ends above the strip: nothing is reported, and the badge keeps its corner beside the card rather than falling over the boxes", () => {
+    for (const recording of [{ width: 500, height: 500 }, { width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+      const fl = layerOf("noir", FAN_EN);
+      const { hud, reported } = report(fl, stages.noir.top, recording);
+      expect([recording.width, reported, hud.count, hud.bottom]).toEqual([recording.width, false, 0, fl.boxesTop]);
+      const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+      for (const t of [1000, 7000]) {
+        const b = badgeIn(hud, t, recording);
+        expect([recording.width, t, b.free, overlaps(b, boxes)]).toEqual([recording.width, t, true, false]);
+        // had the card been reported, no corner would be free and the badge would fall back over the boxes' lines
+        const forced = new LiveHud().reset(1);
+        forced.topBand(stages.noir.top);
+        forced.block(fl.card.x, fl.card.y, fl.card.w, fl.card.h);
+        forced.block(0, fl.boxesTop, S, fl.boxesBottom - fl.boxesTop);
+        const fallen = badgeIn(forced, t, recording);
+        expect([recording.width, t, fallen.free, overlaps(fallen, boxes)]).toEqual([recording.width, t, false, true]);
+      }
+    }
+  });
+
+  it("reports nothing without the card or without the boxes (the HUD off)", () => {
+    for (const fl of [layerOf("noir", FAN_EN, false), { ...layerOf("noir", FAN_EN), boxesTop: Number.POSITIVE_INFINITY, boxesBottom: Number.POSITIVE_INFINITY }]) {
+      const hud = new LiveHud().reset(1);
+      expect(noteFightLeagueCard(hud, SQ, fl, null)).toBe(false);
+      expect([hud.count, hud.bottom]).toEqual([0, Number.POSITIVE_INFINITY]);
+    }
+  });
+
+  it("is wired: the canvas reports the card in place of the boxes' band, with the frame's export while it records", () => {
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const hud = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(hud).toMatch(/if \(flView && flLayer\.boxesTop < Infinity && !noteFightLeagueCard\(hud, liveSquare, flLayer, recording \? exportSizeRef\.current : null\)\) hud\.bottomBand\(flLayer\.boxesTop\);/);
+    expect(hud.indexOf("liveSquare.side = sq;")).toBeLessThan(hud.indexOf("noteFightLeagueCard("));
   });
 });

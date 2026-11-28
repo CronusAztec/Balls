@@ -1,6 +1,7 @@
 import { isPhraseStart, type BeatMachineView } from "@/lib/physics/modes/beatMachine";
 import { BM_TIME_EPS, marblePosition, marbleState, stairsPosition, type BeatMachinePlan } from "@/lib/simulation/beatMachinePlan";
 import { frequencyToMidi } from "@/lib/audio/scales";
+import { BEAT_MACHINE_LOOKS } from "@/lib/physics/beatMachine"; // --- stage-fill ---
 
 /*
  * --- beat-machine --- Beat Machines' picture (lib/physics/modes/beatMachine.ts runs it), drawn in world px under the page's
@@ -24,6 +25,12 @@ import { frequencyToMidi } from "@/lib/audio/scales";
  *
  * Nothing is allocated per frame: no gradients (the gloss is two flat circles), the shared scratch points, one path a layer
  * (the keys' names are made once a plan).
+ *
+ * --- stage-fill --- (round two, B8) The stage's backdrop fills the whole frame, not only the square: a 9:16 export showed three
+ * browns with hard seams at the square's edges (the page's gradient in the bars above and below it). The canvas fills its whole
+ * world with it, and the export's bars get it from `paintExportBackdrop()` (the recorder's background hook, as Fight League's
+ * stage). A page with a background of its own – another colour than the marble machine's look, or a picture – keeps it around
+ * the square (`beatMachineStageFills()`).
  */
 
 /** What the canvas hands the layer each frame. */
@@ -32,7 +39,18 @@ export interface BeatMachineRenderOptions {
   dpr: number;
   /** Ball Glow: stronger halos. */
   showGlow: boolean;
+  /** --- stage-fill --- The page's background: its first colour and its type (missing: the machine's own look). */
+  background?: string;
+  backgroundType?: string;
 }
+
+// --- stage-fill ---
+/** Whether the marble machine's stage fills the whole frame: on the machine's own background, never over a picture or a page colour of the visitor's. */
+export function beatMachineStageFills(opts: Pick<BeatMachineRenderOptions, "background" | "backgroundType">): boolean {
+  if (opts.backgroundType === "image") return false;
+  return opts.background === undefined || opts.background.trim().toLowerCase() === BEAT_MACHINE_LOOKS.marbles.backgroundColors[0].toLowerCase();
+}
+// --- end stage-fill ---
 
 /** The staircase's colours (the clip's): panel, border, dots, track, ball, progress dots. */
 export const BM_STAIRS_LOOK = { panel: "#0f1a28", border: "#1f2c3a", grid: "rgba(255, 255, 255, 0.05)", track: "#2a3b48", ball: "#ffe7a8", ballGlow: "rgba(255, 231, 168, 0.22)", dotOn: "#ffe7a8", dotOff: "rgba(255, 255, 255, 0.16)" } as const;
@@ -92,6 +110,8 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 export class BeatMachineLayer {
+  /** --- stage-fill --- The last stage drawn filled the whole frame (the export's bars follow it: paintExportBackdrop()). */
+  fillsFrame = false;
   /** What the last frame drew (data-bm-*): marbles drawn, rungs drawn, bars glowing, the stairs' lit dot. */
   marblesDrawn = 0;
   rungsDrawn = 0;
@@ -117,6 +137,7 @@ export class BeatMachineLayer {
 
   /** The machine – everything under the balls – at simulation time `t` (s). */
   drawStage(ctx: CanvasRenderingContext2D, view: BeatMachineView, t: number, opts: BeatMachineRenderOptions) {
+    this.fillsFrame = false; // --- stage-fill --- (the marble machine's stage sets it)
     if (view.plan.stairs) {
       this.rungsDrawn = 0;
       this.marblesDrawn = 0;
@@ -126,6 +147,21 @@ export class BeatMachineLayer {
       this.drawMachine(ctx, view, view.plan, t, opts);
     }
   }
+
+  // --- stage-fill --- (round two, B8)
+  /**
+   * The export frame's background (the recorder's hook, before the square and the watermark): the stage's backdrop over the
+   * whole frame – the 9:16 bars above and below the square – when the last stage drawn filled its frame.
+   */
+  paintExportBackdrop(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    if (!this.fillsFrame) return;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = BM_STAGE_LOOK.backdrop;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+  // --- end stage-fill ---
 
   /** The balls at simulation time `t`: the stairs' ball with its trail, or every marble. */
   drawBodies(ctx: CanvasRenderingContext2D, view: BeatMachineView, t: number, opts: BeatMachineRenderOptions) {
@@ -287,7 +323,11 @@ export class BeatMachineLayer {
     const side = view.frame.side > 0 ? view.frame.side : 0;
     if (side > 0) {
       ctx.fillStyle = BM_STAGE_LOOK.backdrop;
-      ctx.fillRect(view.frame.cx - side / 2, view.frame.cy - side / 2, side, side);
+      // --- stage-fill --- (round two, B8) the whole frame (the page's world is 2 cx × 2 cy), a square's side past each edge for the
+      // camera's moves – or only the square, on a background of the visitor's own
+      this.fillsFrame = beatMachineStageFills(opts);
+      if (this.fillsFrame) ctx.fillRect(-side, -side, 2 * view.frame.cx + 2 * side, 2 * view.frame.cy + 2 * side);
+      else ctx.fillRect(view.frame.cx - side / 2, view.frame.cy - side / 2, side, side);
       // --- review fix (D1) --- the lights stay inside the square (a wide stage showed the keys' light past its left edge)
       ctx.save();
       ctx.beginPath();

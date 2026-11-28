@@ -3,9 +3,10 @@ import { fakeCanvas } from "./fakeCanvas";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { sectionRootHz, waveTankSettingsOf, type WaveTankSettings } from "@/lib/physics/waveTank";
+import { WT_TITLE_DIM, WT_TITLE_FADE_SEC, sectionRootHz, waveTankSettingsOf, waveTankTitleAlpha, type WaveTankSettings } from "@/lib/physics/waveTank";
 import { WT_BELL_CHORD_BELLS, WT_FRONT_COLUMNS, WT_GLOW_FLOOR } from "@/lib/physics/modes/waveTank";
-import { WT_LOOK, WT_WATER, WaveTankLayer, glowStep } from "@/components/simulator/waveTankRenderer";
+import { WT_CHORD_FLASH, WT_CHORD_FLASH_SEC, WT_LOOK, WT_PILLARS, WT_PILLAR_FLASH, WT_PILLAR_FLASH_SEC, WT_WATER, WaveTankLayer, glowStep, pillarFlash } from "@/components/simulator/waveTankRenderer";
+import { drawLoopHud, loopHudCount, loopHudFrame, loopHudLayout } from "@/lib/loop/hud";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
@@ -220,5 +221,136 @@ describe("the Wave Tank's start look (wave-chapters)", () => {
     expect(settingsFromSearchParams(link)).toMatchObject(start);
     // the link base is what it was
     expect(defaultSettings("waveTank")).toMatchObject({ wtGaps: "1, 2, 7", wtWrap: 5, wtSpacing: 2 });
+  });
+});
+
+// --- pillar-flash --- --- wave-chapters --- (round two, B8) the climax's pillars flash white; the title dims away from the double slit
+describe("the climax's flash and the title through the chapters (round two, B8)", () => {
+  it("flashes the pillars white as the climax comes in and softer on each of its bell chords, never outside it", () => {
+    expect(pillarFlash({ climax: false, changeSec: 15, chordSec: 15 }, 15)).toBe(0);
+    expect(pillarFlash({ climax: true, changeSec: 15, chordSec: -1 }, 15)).toBeCloseTo(WT_PILLAR_FLASH, 12);
+    expect(pillarFlash({ climax: true, changeSec: 15, chordSec: -1 }, 15 + WT_PILLAR_FLASH_SEC / 2)).toBeCloseTo(WT_PILLAR_FLASH / 2, 12);
+    expect(pillarFlash({ climax: true, changeSec: 15, chordSec: -1 }, 15 + WT_PILLAR_FLASH_SEC)).toBe(0);
+    expect(pillarFlash({ climax: true, changeSec: 15, chordSec: 18 }, 18)).toBeCloseTo(WT_CHORD_FLASH, 12);
+    expect(pillarFlash({ climax: true, changeSec: 15, chordSec: 18 }, 18 + WT_CHORD_FLASH_SEC)).toBe(0);
+    // in the engine: the default sections' climax comes in at 15 s with its chord, the pillars drawn again in white over the screen
+    const engine = wtEngine({ cols: 64 }, 1);
+    const drawAt = () => {
+      const view = engine.getWaveTankView();
+      const fills: unknown[] = [];
+      const canvas = fakeCanvas(800, 600);
+      const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+      const fill = (ctx as unknown as { fill: () => void }).fill.bind(ctx);
+      (ctx as unknown as { fill: () => void }).fill = () => {
+        fills.push(`${String(ctx.fillStyle)}@${ctx.globalAlpha}`);
+        fill();
+      };
+      const layer = new WaveTankLayer();
+      layer.drawStage(ctx, view, view.timeSec, { dpr: 1, showGlow: false, background: "#070b17" });
+      return { layer, fills, view };
+    };
+    // (the pillars' own fills: their steps at 0.25, then at 0.55 + 0.15 × step; the flash: white at its own light, after them)
+    const lastPillar = (fills: unknown[]) => Math.max(...WT_PILLARS.map((c, k) => fills.lastIndexOf(`${c}@${0.55 + 0.15 * k}`)));
+    run(engine, 14 * 60);
+    const before = drawAt();
+    expect([before.view.climax, before.layer.pillarFlash]).toEqual([false, 0]);
+    expect(lastPillar(before.fills)).toBeGreaterThan(0);
+    run(engine, 60 + 2);
+    const into = drawAt();
+    expect(into.view.climax).toBe(true);
+    expect(into.layer.pillarFlash).toBeGreaterThan(0.5 * WT_PILLAR_FLASH);
+    expect(into.fills.indexOf(`${WT_LOOK.wallFlash}@${into.layer.pillarFlash}`)).toBeGreaterThan(lastPillar(into.fills));
+    run(engine, 60);
+    expect(drawAt().layer.pillarFlash).toBeLessThanOrEqual(WT_CHORD_FLASH + 1e-12);
+  });
+
+  it("keeps the title full on the double slit and dims it, never out, in the other chapters; the label names the chapter", () => {
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    const view = engine.getWaveTankView();
+    expect(view.gaps).toBe(2);
+    expect(waveTankTitleAlpha(view)).toBe(1);
+    let dimmed = 0;
+    let full = 0;
+    let last = waveTankTitleAlpha(view);
+    for (let k = 0; k < 30 * 60; k++) {
+      run(engine, 1);
+      const a = waveTankTitleAlpha(view);
+      expect(a).toBeGreaterThanOrEqual(WT_TITLE_DIM - 1e-12);
+      expect(a).toBeLessThanOrEqual(1);
+      // a fade, never a jump: at most the whole step over WT_TITLE_FADE_SEC, eased (× 1.5 at its steepest)
+      expect(Math.abs(a - last)).toBeLessThanOrEqual((1.5 * (1 - WT_TITLE_DIM)) / (WT_TITLE_FADE_SEC * 60) + 1e-9);
+      last = a;
+      const settled = view.timeSec - view.changeSec >= WT_TITLE_FADE_SEC;
+      if (settled && view.gaps === 2) expect(a).toBe(1);
+      if (settled && view.gaps !== 2) expect(a).toBe(WT_TITLE_DIM);
+      if (a === WT_TITLE_DIM) dimmed++;
+      if (a === 1) full++;
+      // the HUD's frame: the title at that light, the section's label as before
+      const count = loopHudCount(engine);
+      const frame = loopHudFrame({ title: "the double slit, in water", subtitle: "", counter: "{count, plural, one {{count} gap} other {{count} gaps}}", light: false }, count, "en");
+      expect(frame.counter).toBe(view.gaps === 1 ? "1 gap" : `${view.gaps} gaps`);
+      expect(frame.titleAlpha ?? 1).toBeCloseTo(a, 12);
+      if (a === 1) expect(count).toBe(view.gaps);
+    }
+    expect(dimmed).toBeGreaterThan(10 * 60);
+    expect(full).toBeGreaterThan(10 * 60);
+    // the drawn title at its light, the rest of the HUD at full
+    const alphas: number[] = [];
+    const canvas = fakeCanvas(1080, 1920);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+    const fillText = ctx.fillText.bind(ctx);
+    ctx.fillText = (text: string, x: number, y: number) => {
+      alphas.push(ctx.globalAlpha);
+      fillText(text, x, y);
+    };
+    drawLoopHud(ctx, 1080, { title: "the double slit, in water", subtitle: "", counter: "7 gaps", light: false, titleAlpha: WT_TITLE_DIM }, loopHudLayout(1080, 1920));
+    expect(alphas).toEqual([WT_TITLE_DIM, 1]);
+  });
+
+  it("keeps the title full in a run of one section, in a run without a double slit and with point sources", () => {
+    for (const patch of [{ gaps: "2" }, { gaps: "1, 1, 7" }, { gaps: "2, 1, 7", source: "points" as const }]) {
+      const engine = wtEngine({ ...patch, cols: 64 }, 1);
+      for (let k = 0; k < 30; k++) {
+        run(engine, 60);
+        expect(waveTankTitleAlpha(engine.getWaveTankView())).toBe(1);
+        expect(typeof (loopHudCount(engine) ?? 0)).toBe("number");
+      }
+    }
+  });
+});
+
+// --- wave-chapters --- (B-g4 review) the title stays full until the double slit has played, and a visitor's own title stays full
+describe("the title before the double slit and a visitor's own title (B-g4 review)", () => {
+  const spec = { title: "the double slit, in water", subtitle: "", counter: "{count, plural, one {{count} gap} other {{count} gaps}}", light: false };
+
+  it("keeps the link base's title full through its 1-gap opening and its double slit, then dims it in the other chapters", () => {
+    const engine = wtEngine({ cols: 64 }, 1); // (the link base: 1, 2, 7)
+    const view = engine.getWaveTankView();
+    expect(view.schedule.sections.map((s) => s.gaps)).toEqual([1, 2, 7]);
+    let seenTwo = false;
+    let leftTwo = false;
+    let dimmed = 0;
+    for (let k = 0; k < 45 * 60; k++) {
+      run(engine, 1);
+      const a = waveTankTitleAlpha(view);
+      if (view.gaps === 2) seenTwo = true;
+      if (seenTwo && view.gaps !== 2) leftTwo = true;
+      if (!leftTwo) expect(a).toBe(1);
+      else if (view.timeSec - view.changeSec >= WT_TITLE_FADE_SEC) expect(a).toBe(view.gaps === 2 ? 1 : WT_TITLE_DIM);
+      if (a === WT_TITLE_DIM) dimmed++;
+    }
+    expect(seenTwo && leftTwo).toBe(true);
+    expect(dimmed).toBeGreaterThan(5 * 60);
+  });
+
+  it("leaves a visitor's own title full while the mode's own dims", () => {
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    const view = engine.getWaveTankView();
+    while (!(waveTankTitleAlpha(view) === WT_TITLE_DIM)) run(engine, 1);
+    const count = loopHudCount(engine);
+    expect(loopHudFrame(spec, count, "en").titleAlpha).toBe(WT_TITLE_DIM);
+    const own = loopHudFrame({ ...spec, title: "my waves", customTitle: true }, count, "en");
+    expect(own.titleAlpha).toBeUndefined();
+    expect(own.counter).toBe(view.gaps === 1 ? "1 gap" : `${view.gaps} gaps`);
   });
 });

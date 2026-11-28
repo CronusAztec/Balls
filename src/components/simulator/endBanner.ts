@@ -17,6 +17,10 @@
  *    that holds its own ending (Merge Ring, Spiral Glass) has had its banner up that long already and gets nothing more.
  * The layout is cached per text and size (a few measureText calls when the words change, none per frame) and the layer
  * reports the plate's box, which the canvas hands to the watermark so its badge keeps clear of it.
+ * --- verdict-plate --- (round two, B6) The verdicts a mode's renderer draws itself come on the same plate, from a layer of its own:
+ * Battle's and Capture the Flag's winner card (arenaRenderer.ts), the Beat Runner's LEVEL COMPLETE!, Paddle Keep-Up's GAME OVER
+ * and win card (jdmRhythmRenderer.ts) and Land Claim's verdict (landClaimRenderer.ts). The squares, the ball, the finish pole and
+ * the confetti pass under it instead of through the words; those modes hold their endings themselves, longer than this hold.
  */
 
 import { END_BANNER_HOLD_MS as END_HOLD_MS } from "@/lib/endHold"; // --- end-hold ---
@@ -52,6 +56,11 @@ export interface EndBannerText {
   note?: string;
   /** The mode's colour ("#rgb" or "#rrggbb"; anything else is used as it is). */
   color: string;
+  /**
+   * --- poly-banner --- The widest the plate may be (px; missing: as wide as 84 % of words make it), for a banner that keeps
+   * inside a figure (Polyrhythm's circle of chords): its words run narrower, the line under the title on two lines first.
+   */
+  maxWidth?: number;
 }
 
 export interface EndBannerLayout {
@@ -174,13 +183,14 @@ export function endBannerSubLines(ctx: Measurer, sub: string, font: string, maxW
 
 /**
  * The banner's layout in a square of `side` px: the title at 8 % of the side (at least 24 px) and the line under it at 4.2 %
- * (at least 13 px), each smaller when it would run wider than 84 % of the side; a long line under the title takes two lines
- * first. Writes into `out`.
+ * (at least 13 px), each smaller when it would run wider than 84 % of the side (--- poly-banner --- or than `maxWidth` leaves
+ * inside the plate's padding); a long line under the title takes two lines first. Writes into `out`.
  */
 export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number, out: EndBannerLayout = emptyLayout()): EndBannerLayout {
   const S = Math.max(1, side);
-  const maxText = TEXT_SHARE * S;
   const base = Math.max(24, 0.08 * S);
+  const padX = 0.55 * base;
+  const maxText = text.maxWidth !== undefined && text.maxWidth > 0 ? Math.min(TEXT_SHARE * S, Math.max(1, text.maxWidth - 2 * padX)) : TEXT_SHARE * S; // --- poly-banner ---
   let titleFs = base;
   let titleW = widthOf(ctx, text.title, titleFont(titleFs));
   if (titleW > maxText) {
@@ -202,7 +212,6 @@ export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number
     noteFs *= maxText / noteW;
     noteW = maxText;
   }
-  const padX = 0.55 * base;
   const padY = 0.42 * base;
   const gap = 0.24 * base;
   const lineH = 1.22 * subFs;
@@ -232,6 +241,21 @@ export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number
   out.titleColor = endBannerTitleColor(text.color);
   out.border = text.color;
   return out;
+}
+
+/**
+ * --- poly-banner --- The plate's height in a square of `side` px for a title and `lines` lines under it at their full sizes
+ * (no note): the tallest layoutEndBanner() makes it, as a word too long for its line only makes a font smaller. For a mode
+ * that clears a place for the plate before its words are laid out (Polyrhythm's circle of chords).
+ */
+export function endBannerPlateHeight(side: number, lines: number): number {
+  const S = Math.max(1, side);
+  const base = Math.max(24, 0.08 * S);
+  const subFs = Math.max(13, 0.042 * S);
+  const padY = 0.42 * base;
+  let y = padY + base;
+  if (lines > 0) y += 0.24 * base + (lines - 1) * 1.22 * subFs + subFs;
+  return y + padY;
 }
 
 function emptyLayout(): EndBannerLayout {
@@ -275,6 +299,35 @@ export function accumulationBannerAt(balls: readonly { y: number; radius: number
   }
   return under < over ? END_BANNER_BOTTOM : END_BANNER_TOP;
 }
+
+// --- mark-clear ---
+/** Half the band a creator's text mark covers around its centre, as a share of its font size (the plates it keeps clear of). */
+const MARK_HALF = 0.6;
+
+/**
+ * Where a creator's own text mark (the watermark text, `wm=`) has its centre, `fs` px tall, in a square centred on `cy`:
+ * under the banners stacked in the middle (`stackBottom`, their lower edge; undefined when none is) or, with none, in the
+ * middle – then under the plate of any banner shown with a place of its own that it would cross (round two, B-g1 review:
+ * Polyrhythm's IN PHASE! inside the circle of chords has its centre in the middle, and the mark ran across its words). A
+ * plate's box is its full-size one (`EndBannerLayer.rect`), so the mark keeps still through the banner's entrance. Pure.
+ */
+export function endBannerMarkY(cy: number, fs: number, stackBottom: number | undefined, plates: readonly { shown: boolean; rect: { y: number; h: number } }[]): number {
+  let y = stackBottom !== undefined ? stackBottom + 8 + 0.8 * fs : cy;
+  // (each move goes lower, under the plate it crossed; a plate under that one is checked again on the next pass)
+  for (let pass = 0; pass <= plates.length; pass++) {
+    let moved = false;
+    for (const p of plates) {
+      if (!p.shown || !(p.rect.h > 0)) continue;
+      if (p.rect.y < y + MARK_HALF * fs && p.rect.y + p.rect.h > y - MARK_HALF * fs) {
+        y = p.rect.y + p.rect.h + 8 + 0.8 * fs;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return y;
+}
+// --- end mark-clear ---
 
 /* ------------------------------------------------------------------ the entrance */
 
@@ -329,7 +382,7 @@ export class EndBannerLayer {
 
   /** The layout of `text` in a square of `side` px (measured again only when the words, the colour or the size change). */
   layout(ctx: CanvasRenderingContext2D, text: EndBannerText, side: number): EndBannerLayout {
-    const key = `${side}|${text.color}|${text.title}|${text.sub}|${text.note ?? ""}`;
+    const key = `${side}|${text.color}|${text.title}|${text.sub}|${text.note ?? ""}|${text.maxWidth ?? ""}`; // (--- poly-banner --- the plate's width)
     if (key !== this.key) {
       this.key = key;
       const font = ctx.font;
@@ -344,11 +397,29 @@ export class EndBannerLayer {
    * before (0 while paused: the entrance waits). A new title starts the entrance over.
    */
   draw(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number, dtMs: number): void {
-    const lay = this.layout(ctx, text, side);
     if (this.animKey !== text.title) {
       this.animKey = text.title;
       this.ageMs = 0;
     } else if (dtMs > 0) this.ageMs += dtMs;
+    this.paint(ctx, text, cx, cy, side);
+  }
+
+  // --- verdict-plate ---
+  /**
+   * (round two, B6) Draws the banner as draw() does, its entrance `ageMs` after the verdict on the mode's own clock: an arena's,
+   * the Beat Runner's or Paddle Keep-Up's simulation time, so a pause holds it and a recording or the fast export replays it frame
+   * for frame. For a mode that draws its own verdict on the plate (its renderer keeps the layer and reports `shown` and `rect`).
+   */
+  drawAt(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number, ageMs: number): void {
+    this.animKey = text.title;
+    this.ageMs = ageMs > 0 ? ageMs : 0;
+    this.paint(ctx, text, cx, cy, side);
+  }
+  // --- end verdict-plate ---
+
+  /** The plate and its words, at the age the entrance has reached (draw() and drawAt() keep its clock). */
+  private paint(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number): void {
+    const lay = this.layout(ctx, text, side);
     this.drawn = true;
     const w = lay.width;
     const h = lay.height;

@@ -20,6 +20,8 @@ import type { WaveTankView } from "@/lib/physics/modes/waveTank";
  *   the water's amplitude at the front edge above it – the double slit's photographic plate, its stripes standing up;
  * - the bells on a rail under the pillars: brass dots with amber halos as loud as the water over them, flashing when the
  *   scanning cursor (or, in the climax, the bells' chord) strikes them.
+ * - --- pillar-flash --- (round two, B8) in the climax the pillars flash white: fully as it comes in with its chord, softer on
+ *   each of the bells' chords after it, so the grating's beams land on the music.
  *
  * Nothing is allocated per frame: no gradients, the projected points and the steps in reused buffers, a few paths a ridge
  * (the glow's six steps, the height's three). Everything reads the view at simulation time `t`, so the live canvas, the fast
@@ -47,6 +49,22 @@ export const WT_INCOMING_STEP = 3;
 export const WT_PILLAR_FLOOR = 0.45;
 /** The pillars' four light steps (dim to white). */
 export const WT_PILLARS = ["#1d6fd1", "#36b4f5", "#9be7ff", "#ffffff"] as const;
+// --- pillar-flash ---
+/** The climax's flash of the pillars: as it comes in (s, strength) and on each bell chord in it (s, strength). */
+export const WT_PILLAR_FLASH_SEC = 0.5;
+export const WT_PILLAR_FLASH = 0.85;
+export const WT_CHORD_FLASH_SEC = 0.3;
+export const WT_CHORD_FLASH = 0.4;
+/** How white the pillars are at `t` (s): 0 outside the climax, up to WT_PILLAR_FLASH as it comes in, WT_CHORD_FLASH on a chord. */
+export function pillarFlash(view: Pick<WaveTankView, "climax" | "changeSec" | "chordSec">, t: number): number {
+  if (!view.climax) return 0;
+  const sinceIn = view.changeSec >= 0 ? t - view.changeSec : Infinity;
+  const sinceChord = view.chordSec >= 0 ? t - view.chordSec : Infinity;
+  const fadeIn = sinceIn >= 0 && sinceIn < WT_PILLAR_FLASH_SEC ? WT_PILLAR_FLASH * (1 - sinceIn / WT_PILLAR_FLASH_SEC) : 0;
+  const fadeChord = sinceChord >= 0 && sinceChord < WT_CHORD_FLASH_SEC ? WT_CHORD_FLASH * (1 - sinceChord / WT_CHORD_FLASH_SEC) : 0;
+  return Math.max(fadeIn, fadeChord);
+}
+// --- end pillar-flash ---
 /** Height of a ridge per unit of amplitude (tank widths), and the most |u| a ridge shows (spikes past it are cut). */
 export const WT_HEIGHT = 0.045;
 export const WT_HEIGHT_CLIP = 6;
@@ -174,6 +192,8 @@ export class WaveTankLayer {
   litBells = 0;
   flashing = 0;
   litPillars = 0;
+  /** --- pillar-flash --- How white the pillars were drawn last frame (0–1). */
+  pillarFlash = 0;
   /** --- wave-glow --- The light step of each sample of the ridge being drawn, its line step, and the frame's water light (mean step, 0–5). */
   waterLight = 0;
   /** Where the front ridge's face ends (world px): the screen's top, which covers what the faces behind it spilled past it. */
@@ -246,7 +266,7 @@ export class WaveTankLayer {
       this.drawWall(ctx, view, p, line, t);
     }
     if (!lines) this.drawPointSources(ctx, view, p, side, t);
-    this.drawScreen(ctx, view, p, side, line);
+    this.drawScreen(ctx, view, p, side, line, t);
     this.drawBells(ctx, view, p, t, side, opts);
     ctx.restore();
   }
@@ -501,9 +521,10 @@ export class WaveTankLayer {
    * --- wave-glow --- The screen in front of the water: WT_FRONT_COLUMNS pillars standing on the bells' rail, each as tall and
    * as bright as the water's amplitude at the front edge above it (against the row's brightest), one path a light step.
    */
-  private drawScreen(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, side: number, line: number) {
+  private drawScreen(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, side: number, line: number, t: number) {
     const n = view.front.length;
     this.litPillars = 0;
+    this.pillarFlash = 0;
     if (n === 0) return;
     // against the row's brightest, but never under WT_PILLAR_FLOOR of the incoming wave: a row that is even everywhere (one narrow
     // gap) stands half tall, a grating's beams full height
@@ -538,6 +559,22 @@ export class WaveTankLayer {
       ctx.fill();
       ctx.globalAlpha = 0.55 + 0.15 * k;
       ctx.fill();
+    }
+    // --- pillar-flash --- (round two, B8) the climax's flash: every pillar drawn above, again in white (one path)
+    const flash = pillarFlash(view, t);
+    if (flash > 0) {
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const a = Number.isFinite(view.front[i]) ? Math.max(0, view.front[i]) : 0;
+        const q = a / ref;
+        if (glowStep(a, ref, WT_PILLARS.length) === 0 && q < 0.04) continue;
+        const h = tall * Math.max(0.04, q);
+        ctx.rect(left + i * w + 0.12 * w, floor - h, 0.76 * w, h);
+      }
+      ctx.fillStyle = WT_LOOK.wallFlash;
+      ctx.globalAlpha = flash;
+      ctx.fill();
+      this.pillarFlash = flash;
     }
     // the screen's base line
     ctx.globalAlpha = 0.6;

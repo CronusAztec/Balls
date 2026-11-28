@@ -4,6 +4,7 @@ import { SC_RIM_BINS, circleLineup, coverageText, fanText, rimAt, wallOverlap, t
 import type { TeamEntry } from "@/lib/teams";
 import { flagGlyphsSupported } from "./landClaimRenderer";
 import { sbShieldMs } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
+import { SB_FINALE_PULSE } from "./stringBattleRenderer"; // --- calm-finale ---
 
 /**
  * --- string-circle --- Canvas drawing of the String Battle's circle style (lib/physics/modes/stringCircle.ts), one
@@ -229,6 +230,8 @@ export class StringCircleLayer {
   hudDrawn = false;
   bannerDrawn = false;
   title = "";
+  /** --- verdict-freeze --- The winner banner's second line as last drawn ("[pct]% OF THE RIM"; "" for none). */
+  verdictLine = "";
   /** The screen y the standings strip starts at (Infinity: none) – what the bottom captions stay above. */
   stripTop = Infinity;
   /** --- low-findings --- The title line's letters last frame (screen px) and the scoreboard it kept clear of (w 0: none). */
@@ -472,12 +475,12 @@ export class StringCircleLayer {
     }
   }
 
-  /** The rim arcs: every run of bins one team holds, just outside the wall in its colour. */
+  /** The rim arcs: every run of bins one team holds, just outside the wall in its colour (--- verdict-freeze --- from the finish on, as the verdict left them). */
   private drawRimArcs(ctx: CanvasRenderingContext2D, view: StringBattleView) {
     this.arcs = 0;
     const c = view.circle;
     if (!c) return;
-    const owner = c.coverage.owner;
+    const owner = verdictRimOwner(view); // --- verdict-freeze --- (B-g1 review: the rim keeps the banner's share through the hold)
     const n = SC_RIM_BINS;
     // Start the walk at a change of owner, so no run is split at bin 0.
     let start = 0;
@@ -629,7 +632,7 @@ export class StringCircleLayer {
       const look = this.looks[f.slot];
       if (!B || !look) continue;
       const r = B.radius;
-      const pulse = view.finale && !view.finished && !this.reduced ? 1 + 0.25 * Math.sin(now * 0.02 + f.slot) : 1;
+      const pulse = view.finale && !view.finished && !this.reduced ? 1 + 0.25 * Math.sin(now * SB_FINALE_PULSE + f.slot) : 1; // (--- calm-finale --- 2 Hz, was about 3.2)
       const glowR = 2.6 * r * pulse;
       ctx.globalAlpha = 0.9;
       ctx.drawImage(this.glowSprite(look.fan), B.x - glowR, B.y - glowR, 2 * glowR, 2 * glowR);
@@ -776,6 +779,7 @@ export class StringCircleLayer {
     this.hudDrawn = view.settings.hud;
     this.stripTop = this.hudDrawn ? this.drawStrip(ctx, view, sx, sy, side, o.labels) : Infinity;
     this.bannerDrawn = false;
+    this.verdictLine = ""; // --- verdict-freeze --- (drawBanner() sets it)
     if (view.finished && !frame.teamBanner && o.nowMs - view.finishedMs >= BANNER_DELAY_MS) {
       if (!this.bannerStarted) {
         this.bannerStarted = true;
@@ -837,7 +841,7 @@ export class StringCircleLayer {
     const order = this.order;
     order.length = 0;
     for (const f of view.fighters) if (f.alive) order.push(f.slot);
-    const share = c ? c.coverage.share : null;
+    const share = c ? verdictShares(view) : null; // --- verdict-freeze --- (from the finish on: the shares the verdict was taken on)
     order.sort((a, b) => (share ? (share[b] ?? 0) - (share[a] ?? 0) : 0) || a - b);
     const fs = Math.max(8, 0.026 * side);
     const chipH = 1.7 * fs;
@@ -897,8 +901,9 @@ export class StringCircleLayer {
     const flag = look && look.emoji && (!look.code || flagGlyphsSupported()) ? `${look.emoji} ` : "";
     const title = winner >= 0 ? `🏆 ${flag}${L.wins(this.nameOf(winner))}` : L.draw;
     const color = look ? look.fan : "#ffffff";
-    const pct = winner >= 0 && view.circle ? Math.round(100 * (view.circle.coverage.share[winner] ?? 0)) : -1;
+    const pct = winner >= 0 && view.circle ? Math.round(100 * (verdictShares(view)[winner] ?? 0)) : -1; // --- verdict-freeze --- (one number through the hold)
     const sub = pct >= 0 ? L.rim(pct) : "";
+    this.verdictLine = sub; // --- verdict-freeze ---
     let fs = Math.max(20, 0.072 * side);
     ctx.font = this.font(fs, 900);
     const tw = ctx.measureText(title).width;
@@ -972,6 +977,31 @@ export class StringCircleLayer {
     if (live === 0) this.confetti = 0;
   }
 }
+
+// --- verdict-freeze ---
+/**
+ * The rim shares the overlay shows: live while the battle goes on, and from the finish on the ones the verdict was taken on
+ * (`StringCircleState.verdictShares`), so the banner's "[pct]% OF THE RIM" and the strip keep one number each through the end
+ * hold while the winner's fan goes on painting the rim's coverage (`data-sb-coverage` stays live).
+ */
+export function verdictShares(view: StringBattleView): ArrayLike<number> {
+  const c = view.circle;
+  if (!c) return [];
+  return view.finished && c.verdictShares ? c.verdictShares : c.coverage.share;
+}
+
+/**
+ * The rim bins the arcs are drawn from (round two, B-g1 review): live while the battle goes on, and from the finish on the
+ * rim as the verdict left it (`StringCircleState.verdictOwner`), so the rim the viewer sees through the end hold keeps
+ * agreeing with the banner – it showed the loser ahead 2.4 s into the card's hold while the banner kept the winner's 60 %.
+ */
+export function verdictRimOwner(view: StringBattleView): Int16Array {
+  const c = view.circle;
+  if (!c) return NO_RIM;
+  return view.finished && c.verdictOwner ? c.verdictOwner : c.coverage.owner;
+}
+const NO_RIM = new Int16Array(0);
+// --- end verdict-freeze ---
 
 /* ------------------------------------------------------------------ data-sb-* of the circle style */
 

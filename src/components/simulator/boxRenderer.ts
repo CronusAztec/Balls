@@ -14,6 +14,16 @@ import type { Ball } from "@/lib/physics/types";
  * aimed at lighting up as its last counts run out, and a shape that reaches 0 popping into confetti of its colour instead of
  * staying on as a dim ghost. All of it from the simulation's own ticks and the shape's id (`burstHash()`), so a frame is the
  * same live, in the fast export and in the Windows app's render queue.
+ *
+ * --- box-digits --- (round two, B8) The shapes pass through each other by design, so a shape drawn later covered the countdown
+ * digits of one under it (5 of 12 frames of a first visit hid a number). The digits are drawn in a pass of their own over every
+ * shape, each outlined in its own shape's colour (on its own body the outline does not show; over another shape or the dark
+ * floor it is the number's own patch of colour), and a number whose digits would land on another number's is moved clear of it
+ * (`placeBoxDigits()`): above or below, whichever side its own shape is on, inside the box.
+ * (B-g4 review) The shape drawn on top keeps its own number on its body (the numbers are placed from it down: a covered
+ * shape's number moves, never the visible one's), a number moves past the whole cluster in its way until nothing is (two
+ * passes could leave a third on another: "3" over "12"), with the other side and then sideways when one side leaves the box,
+ * and past BOX_DIGITS_PLACED numbers they stay on their shapes (the work grows with the square of their count).
  */
 
 export interface BoxRenderOptions {
@@ -44,6 +54,115 @@ export const BURST_PIECES = 28;
 export const FINALE_GLOW_COUNT = 6;
 /** The countdown digits' size against the shape (1.5× the size they had: readable on a phone). */
 export const DIGIT_SCALE = 1.5;
+// --- box-digits ---
+/** The digits' outline (× their font size), the gap kept between two numbers (× the smaller font size) and the digits' box height (× font size). */
+export const DIGIT_OUTLINE = 0.22;
+export const DIGIT_GAP = 0.12;
+export const DIGIT_BOX_HEIGHT = 0.8;
+/** A number to draw: its centre (moved clear of the others by placeBoxDigits()), its box (half width and half height) and its look. */
+export interface BoxDigit {
+  x: number;
+  y: number;
+  halfW: number;
+  halfH: number;
+  fs: number;
+  count: number;
+  /** Its shape's centre: the number moves to the side of the other number its shape is on. */
+  shapeY: number;
+  fill: string;
+}
+/** The numbers drawn in a frame, reused frame after frame (nothing allocated once as many have been drawn). */
+const DIGITS: BoxDigit[] = [];
+/**
+ * (B-g4 review) The most numbers placeBoxDigits() moves clear of each other in a frame. Past it (a box of hundreds or thousands
+ * of shapes, up to the entity ceiling) every number stays on its shape: the work grows with the square of the count, and
+ * 5,000 shapes cost 68-390 ms a frame.
+ */
+export const BOX_DIGITS_PLACED = 64;
+/** Whether two numbers' boxes, with the gap kept between them, cross. */
+function digitsCross(a: BoxDigit, b: BoxDigit): boolean {
+  const gap = DIGIT_GAP * Math.min(a.fs, b.fs);
+  return Math.abs(a.x - b.x) < a.halfW + b.halfW + gap && Math.abs(a.y - b.y) < a.halfH + b.halfH + gap;
+}
+/** The four ways a number can move off the others. */
+const UP = 0;
+const DOWN = 1;
+const LEFT = 2;
+const RIGHT = 3;
+/** A move smaller than this (px) is the floating point's, not a number in the way. */
+const DIGIT_EPS = 1e-7;
+/**
+ * Number `i` moved one way only (`dir`) past every number before it that is in its way, until none is: the farthest of those in
+ * its way each time, so it passes the whole cluster it meets; each placed number at most once, as it never moves back. Whether
+ * it ends inside the box along that way (`lo` … `hi`: top and bottom, or left and right). `work[0]` counts the pairs compared.
+ */
+function sweepBoxDigit(digits: readonly BoxDigit[], i: number, dir: number, lo: number, hi: number, work: number[]): boolean {
+  const d = digits[i];
+  for (;;) {
+    let to = Number.NaN;
+    for (let j = 0; j < i; j++) {
+      const p = digits[j];
+      work[0]++;
+      if (!digitsCross(d, p)) continue;
+      const gap = DIGIT_GAP * Math.min(d.fs, p.fs);
+      const past = dir === UP ? p.y - p.halfH - gap - d.halfH : dir === DOWN ? p.y + p.halfH + gap + d.halfH : dir === LEFT ? p.x - p.halfW - gap - d.halfW : p.x + p.halfW + gap + d.halfW;
+      // (only a move that gets on: one already past it but for the floating point's last bit is no longer in the way)
+      const at = dir === UP || dir === DOWN ? d.y : d.x;
+      if (dir === UP || dir === LEFT ? !(past < at - DIGIT_EPS) : !(past > at + DIGIT_EPS)) continue;
+      if (Number.isNaN(to) || (dir === UP || dir === LEFT ? past < to : past > to)) to = past;
+    }
+    if (Number.isNaN(to)) return true;
+    if (dir === UP || dir === DOWN) {
+      d.y = to;
+      if (d.y - d.halfH < lo || d.y + d.halfH > hi) return false;
+    } else {
+      d.x = to;
+      if (d.x - d.halfW < lo || d.x + d.halfW > hi) return false;
+    }
+  }
+}
+const SWEEP_WORK = [0];
+/**
+ * Moves the numbers clear of each other, in their order (the first keeps its place; drawBoxShapes() hands them over from the
+ * shape drawn on top down): a number whose box crosses one placed before it goes past the whole cluster of placed numbers in
+ * its way – above when its shape's centre is higher than the first one's it met, below otherwise (ties: below) – checked again
+ * against every placed number until nothing is in its way. When that leaves the box (`top` … `bottom`) it goes the other way,
+ * then sideways (its shape's side of that number first, ties: right; inside `left` … `right`); with no room anywhere it stays
+ * where it is. Up to BOX_DIGITS_PLACED numbers (past it none moves). Pure: the same numbers give the same places in every
+ * frame. Returns the pairs it compared (the work).
+ */
+export function placeBoxDigits(digits: readonly BoxDigit[], n: number, top: number, bottom: number, left = -Infinity, right = Infinity): number {
+  if (n > BOX_DIGITS_PLACED) return 0;
+  const work = SWEEP_WORK;
+  work[0] = 0;
+  for (let i = 1; i < n; i++) {
+    const d = digits[i];
+    let first = -1;
+    for (let j = 0; j < i && first < 0; j++) {
+      work[0]++;
+      if (digitsCross(d, digits[j])) first = j;
+    }
+    if (first < 0) continue;
+    const o = digits[first];
+    const x0 = d.x;
+    const y0 = d.y;
+    const v = d.shapeY < o.shapeY ? UP : DOWN;
+    const h = x0 < o.x ? LEFT : RIGHT;
+    let placed = false;
+    for (let t = 0; t < 4 && !placed; t++) {
+      const dir = t === 0 ? v : t === 1 ? UP + DOWN - v : t === 2 ? h : LEFT + RIGHT - h;
+      d.x = x0;
+      d.y = y0;
+      placed = dir === UP || dir === DOWN ? sweepBoxDigit(digits, i, dir, top, bottom, work) : sweepBoxDigit(digits, i, dir, left, right, work);
+    }
+    if (!placed) {
+      d.x = x0; // (no room anywhere in this box: it stays on its shape)
+      d.y = y0;
+    }
+  }
+  return work[0];
+}
+// --- end box-digits ---
 
 /** A fixed pseudo-random number in [0, 1) for a shape's burst piece (no random draw: the same frame everywhere). */
 export function burstHash(id: number, piece: number, k: number): number {
@@ -233,9 +352,10 @@ function drawBurst(ctx: CanvasRenderingContext2D, view: BoxView, ball: Ball, hw:
   ctx.restore();
 }
 
-/** The shapes: trail, glow, body, DVD motif and countdown number, in the order of the balls. */
+/** The shapes: trail, glow, body and DVD motif in the order of the balls, then every countdown number over all of them. */
 export function drawBoxShapes(ctx: CanvasRenderingContext2D, balls: Ball[], view: BoxView, o: BoxRenderOptions) {
   const shape = view.shape;
+  let digits = 0; // --- box-digits ---
   for (const ball of balls) {
     const st = view.shapes.get(ball.id);
     if (!st) continue;
@@ -303,14 +423,55 @@ export function drawBoxShapes(ctx: CanvasRenderingContext2D, balls: Ball[], view
       ctx.fill();
     }
     if (view.countdown > 0 && Math.min(hw, hh) >= 7) {
-      const digits = st.count >= 10 ? 2 : 1;
+      const width = st.count >= 10 ? 2 : 1;
       // (--- box-finale --- DIGIT_SCALE: half as big again, still inside a square or circle's body)
-      const fs = DIGIT_SCALE * (shape === "dvd" ? Math.min(1.05 * hh, (1.5 * hw) / digits) : Math.min(1.25 * hh, (1.6 * hw) / digits));
-      ctx.font = `bold ${fs.toFixed(1)}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      const fs = DIGIT_SCALE * (shape === "dvd" ? Math.min(1.05 * hh, (1.5 * hw) / width) : Math.min(1.25 * hh, (1.6 * hw) / width));
+      // --- box-digits --- (round two, B8) noted here, drawn in the pass over every shape below
+      if (digits >= DIGITS.length) DIGITS.push({ x: 0, y: 0, halfW: 0, halfH: 0, fs: 0, count: 0, shapeY: 0, fill: "" });
+      const d = DIGITS[digits++];
+      d.x = ball.x;
+      d.y = ball.y + (shape === "dvd" ? -0.28 * hh : 0.04 * fs);
+      d.shapeY = ball.y;
+      d.fs = fs;
+      d.count = st.count;
+      d.fill = fill;
+      d.halfH = 0.5 * DIGIT_BOX_HEIGHT * fs;
+      d.halfW = 0; // (measured in the pass below, in the digits' font)
+    }
+    ctx.restore();
+  }
+  // --- box-digits --- (round two, B8) the numbers over every shape: each outlined in its own shape's colour, moved clear of another
+  if (digits > 0) {
+    // (B-g4 review) from the shape drawn on top down: it keeps its own number on its body, a covered shape's number moves
+    for (let a = 0, b = digits - 1; a < b; a++, b--) {
+      const swap = DIGITS[a];
+      DIGITS[a] = DIGITS[b];
+      DIGITS[b] = swap;
+    }
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    if (digits <= BOX_DIGITS_PLACED) {
+      for (let i = 0; i < digits; i++) {
+        const d = DIGITS[i];
+        ctx.font = `bold ${d.fs.toFixed(1)}px sans-serif`;
+        d.halfW = 0.5 * ctx.measureText(String(d.count)).width + 0.5 * DIGIT_OUTLINE * d.fs;
+      }
+      const f = view.field;
+      placeBoxDigits(DIGITS, digits, f ? f.top : -Infinity, f ? f.bottom : Infinity, f ? f.left : -Infinity, f ? f.right : Infinity);
+    }
+    // (the top shape's number drawn last: over any it could not be moved clear of)
+    for (let i = digits - 1; i >= 0; i--) {
+      const d = DIGITS[i];
+      const text = String(d.count);
+      ctx.font = `bold ${d.fs.toFixed(1)}px sans-serif`;
+      ctx.strokeStyle = d.fill;
+      ctx.lineWidth = DIGIT_OUTLINE * d.fs;
+      ctx.strokeText(text, d.x, d.y);
       ctx.fillStyle = "rgba(10, 10, 15, 0.9)";
-      ctx.fillText(String(st.count), 0, shape === "dvd" ? -0.28 * hh : 0.04 * fs);
+      ctx.fillText(text, d.x, d.y);
     }
     ctx.restore();
   }

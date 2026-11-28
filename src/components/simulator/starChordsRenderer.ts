@@ -16,6 +16,17 @@ import { LOOP_HUD_AMBER } from "@/lib/loop/hud"; // --- finales-in-clip --- (rev
  * chord came in); a frame with more than SC_FRAME_CHORDS new chords (a star of a million points) draws the newest of them, and
  * past SC_CHORD_CEILING chords in a cycle the layer fades the oldest by half every quarter of the ceiling – nothing is stored
  * per chord, so the work stays bounded whatever the stars.
+ *
+ * --- star-lift --- (round two) A run whose stars can all be lit (`starChordsStaged()`: up to SC_LIT_BALLS_MAX balls and
+ * SC_LIT_CHORDS_MAX chords of reduced stars, the default five, the presets and a dozen balls) is drawn staged: the layer holds the
+ * chords at SC_OLDER_SHARE of the bright strength, and every frame each ball's newest two chords and the one it is drawing go on top,
+ * bright, wider and with a soft glow, so the eye follows five pens instead of a tangle. Every cycle opens with the first ball's star
+ * shown bright and the other pens dimmed for its first SC_FOCUS_SEC; then, as each pen gets onto its star's last chord (the HUD's
+ * "stars closing" count), its whole star lights with a ring pulse from its inner circle to the rim, one by one, until every star
+ * closes with the flash and a ring off the rim; the lit drawing holds and fades with the loop, the inner circles drawn over it. All
+ * of it is read from the view on the cycle's clock, so every cycle draws the same (the seamless loop) and the fast export draws what
+ * the page draws. Nothing reaches the run or its sounds. A bigger run keeps the look before (the layer at full strength, the pens as
+ * they were).
  */
 
 /** The look's knobs the canvas hands over every frame. */
@@ -56,10 +67,80 @@ const FADE_EVERY = SC_CHORD_CEILING / 4;
  */
 export const SC_GLOW_SPRITE_CEILING = 512;
 
+// --- star-lift --- the staged look's knobs
+/** Balls a staged run has at most (each ball's bright chords are a couple of strokes a frame). */
+export const SC_LIT_BALLS_MAX = 64;
+/** Chords of the reduced stars (Σ n / laps) a staged run has at most: what lighting every star draws in a frame. */
+export const SC_LIT_CHORDS_MAX = 2048;
+/** The bright chords' strength and width (× the line width), and their glow's (a wider, faint stroke under them). */
+export const SC_BRIGHT_ALPHA = 0.95;
+export const SC_BRIGHT_WIDTH = 1.5;
+/** A lit star's older chords: bright, a little finer than the pens (the closed figure stays a fine mandala). */
+export const SC_LIT_WIDTH = 1.2;
+const GLOW_WIDTH = 3.6;
+const GLOW_ALPHA = 0.16;
+/** The older chords' strength in a staged run, a share of the bright ones'. */
+export const SC_OLDER_SHARE = 0.4;
+/** Seconds of every cycle's opening with the first ball's star bright (at most a quarter of the drawing time). */
+export const SC_FOCUS_SEC = 2;
+const FOCUS_IN_SEC = 0.25;
+/** The opening's guide star (× the bright strength) and the other pens' strength at the cycle's start. */
+const FOCUS_GUIDE = 0.6;
+const FOCUS_DIM = 0.45;
+/** Seconds a star takes to light once its pen is on its last chord (from a glimmer), and its ring pulse. */
+const LIGHT_IN_SEC = 0.3;
+const LIGHT_FIRST = 0.12;
+const PULSE_SEC = 0.7;
+
 /** Ease in-out (sine): the fade of the drawing. */
 function ease(p: number): number {
   const x = p < 0 ? 0 : p > 1 ? 1 : p;
   return 0.5 - 0.5 * Math.cos(Math.PI * x);
+}
+
+/** --- star-lift --- True when every star of the run can be lit (the staged look); a bigger run keeps the look before. */
+export function starChordsStaged(view: StarChordsView): boolean {
+  if (!(view.count >= 1) || view.count > SC_LIT_BALLS_MAX) return false;
+  let chords = 0;
+  for (let i = 0; i < view.count; i++) {
+    const s = view.stars?.[i];
+    if (!s) return false;
+    chords += s.n / Math.max(1, view.laps[i] ?? 1);
+    if (chords > SC_LIT_CHORDS_MAX) return false;
+  }
+  return true;
+}
+
+/** --- star-lift --- The chords of ball `i`'s reduced star (n / laps: the star it closes). */
+function starPoints(view: StarChordsView, i: number): number {
+  return view.stars[i].n / Math.max(1, view.laps[i]);
+}
+
+/** --- star-lift --- The cycle time ball `i`'s pen gets onto its star's last chord: when the star lights (the HUD counts it closing). */
+export function starLightAt(view: StarChordsView, i: number): number {
+  return ((starPoints(view, i) - 1) * view.cycleSec) / view.stars[i].n;
+}
+
+/** --- star-lift --- How lit ball `i`'s star is (0–1): from its last chord on, a glimmer rising in LIGHT_IN_SEC; whole after the closing. */
+export function starLitAt(view: StarChordsView, i: number): number {
+  if (view.phase !== "draw") return 1;
+  if (view.bounces[i] < starPoints(view, i) - 1) return 0;
+  return Math.max(LIGHT_FIRST, ease((view.cycleTime - starLightAt(view, i)) / LIGHT_IN_SEC));
+}
+
+/** --- star-lift --- The opening's strength (0–1) at this frame: rising at the cycle's start, gone by its focus time. */
+export function starFocusAt(view: StarChordsView): number {
+  const span = Math.min(SC_FOCUS_SEC, 0.25 * view.cycleSec);
+  const t = view.cycleTime;
+  if (view.phase !== "draw" || !(span > 0) || t >= span) return 0;
+  return Math.min(1, Math.max(0, t) / FOCUS_IN_SEC) * (1 - ease(t / span));
+}
+
+/** --- star-lift --- The other pens' strength during the opening (FOCUS_DIM at the cycle's start, whole by its focus time). */
+function othersDim(view: StarChordsView): number {
+  const span = Math.min(SC_FOCUS_SEC, 0.25 * view.cycleSec);
+  if (view.phase !== "draw" || !(span > 0) || view.cycleTime >= span) return 1;
+  return FOCUS_DIM + (1 - FOCUS_DIM) * ease(view.cycleTime / span);
 }
 
 export class StarChordsLayer {
@@ -76,6 +157,8 @@ export class StarChordsLayer {
   private lineWidth = 0;
   private colorVersion = -1;
   private cycle = -1;
+  /** --- star-lift --- The strength the layer strokes its chords at (the older chords' in a staged run): a change repaints it. */
+  chordAlpha = 0;
   /** Per ball: the chords already on the layer this cycle. */
   private drawn = new Float64Array(0);
   /** Chords on the layer this cycle, and the fades the ceiling made. */
@@ -98,19 +181,25 @@ export class StarChordsLayer {
   drawStage(ctx: CanvasRenderingContext2D, view: StarChordsView, o: StarChordsRenderOptions) {
     const f = view.field;
     const alpha = view.phase === "fade" ? 1 - ease(view.phaseProgress) : 1;
+    const staged = starChordsStaged(view); // --- star-lift ---
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.shadowBlur = 0;
     this.drawCircle(ctx, view, o);
-    if (view.envelope !== "off") this.drawEnvelopes(ctx, view, alpha);
-    this.paintLayer(view, o.dpr);
+    if (view.envelope !== "off" && !staged) this.drawEnvelopes(ctx, view, alpha);
+    this.paintLayer(view, o.dpr, staged ? SC_OLDER_SHARE * SC_BRIGHT_ALPHA : CHORD_ALPHA);
     if (this.layer && this.size > 0 && alpha > 0.002) {
       ctx.globalAlpha = alpha;
       ctx.drawImage(this.layer, f.cx - this.half, f.cy - this.half, 2 * this.half, 2 * this.half);
       ctx.globalAlpha = 1;
     }
-    if (view.phase === "draw") this.drawCurrentChords(ctx, view);
+    // --- star-lift --- staged: the stars' ring pulses as they light, then the bright chords (the newest, the lit stars, the opening's star)
+    if (staged) {
+      this.drawPulses(ctx, view);
+      this.drawBrightChords(ctx, view, alpha);
+      if (view.envelope !== "off") this.drawEnvelopes(ctx, view, alpha); // (the inner circles over the lit chords: the payoff on top)
+    } else if (view.phase === "draw") this.drawCurrentChords(ctx, view);
     if (o.showWallGlow) this.drawGlints(ctx, view);
     ctx.restore();
   }
@@ -119,6 +208,9 @@ export class StarChordsLayer {
   drawBodies(ctx: CanvasRenderingContext2D, view: StarChordsView, o: StarChordsRenderOptions) {
     const r = view.field.ballRadius;
     const glowR = (o.showGlow ? 3.2 : 2.2) * r;
+    // --- star-lift --- the opening: the first ball's glow grows, the others' dims with their pens
+    const focus = starChordsStaged(view) ? starFocusAt(view) : 0;
+    const dim = focus > 0 ? othersDim(view) : 1;
     // --- low-findings-2 --- the sprites of the live palette: started over only with a new run or new colours
     if (view.generation !== this.glowGen || view.colorVersion !== this.glowColorVersion) {
       this.glowSprites.clear();
@@ -131,15 +223,16 @@ export class StarChordsLayer {
       const color = view.colors[i] ?? "#ffffff";
       const x = view.x[i];
       const y = view.y[i];
-      ctx.globalAlpha = o.showGlow ? 0.85 : 0.6;
+      ctx.globalAlpha = (o.showGlow ? 0.85 : 0.6) * (i === 0 ? 1 : dim);
+      const gr = i === 0 && focus > 0 ? glowR * (1 + 0.5 * focus) : glowR; // --- star-lift ---
       const sprite = this.glowSprite(color);
-      if (sprite) ctx.drawImage(sprite, x - glowR, y - glowR, 2 * glowR, 2 * glowR);
+      if (sprite) ctx.drawImage(sprite, x - gr, y - gr, 2 * gr, 2 * gr);
       else {
         // (past the sprite ceiling: a faint disc in the ball's colour)
         ctx.globalAlpha *= 0.25;
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(x, y, 0.7 * glowR, 0, 2 * Math.PI);
+        ctx.arc(x, y, 0.7 * gr, 0, 2 * Math.PI);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -167,7 +260,102 @@ export class StarChordsLayer {
     ctx.beginPath();
     ctx.arc(f.cx, f.cy, 1.08 * f.radius, 0, 2 * Math.PI);
     ctx.fill();
+    // --- star-lift --- and a ring pulse off the rim, out and fading with the flash
+    const out = ease(age / FLASH_SEC);
+    ctx.globalAlpha = 0.55 * k * k;
+    ctx.strokeStyle = "#f4f0ff";
+    ctx.lineWidth = Math.max(1.5, 0.012 * f.radius) * (1.6 - 0.8 * out);
+    ctx.beginPath();
+    ctx.arc(f.cx, f.cy, f.radius * (1 + 0.12 * out), 0, 2 * Math.PI);
+    ctx.stroke();
     ctx.restore();
+  }
+
+  /**
+   * --- star-lift --- The bright chords of a staged run, over the older ones the layer holds: the opening's star (the first ball's,
+   * whole, for the cycle's first seconds), each lit star's older chords (lighting up from its last chord on) and every ball's newest
+   * two chords with the one it is drawing – each a wide faint glow under a bright core. Bounded: a staged run lights at most
+   * SC_LIT_CHORDS_MAX chords and has at most SC_LIT_BALLS_MAX balls.
+   */
+  private drawBrightChords(ctx: CanvasRenderingContext2D, view: StarChordsView, alpha: number) {
+    if (alpha <= 0.002) return;
+    const w = Math.max(0.5, view.lineWidth);
+    const focus = starFocusAt(view);
+    const dim = othersDim(view);
+    if (focus > 0.002 && view.count > 0) {
+      ctx.beginPath();
+      this.traceChords(ctx, view, 0, 0, starPoints(view, 0), false);
+      this.strokeBright(ctx, view.colors[0] ?? "#ffffff", alpha * FOCUS_GUIDE * focus, w, SC_LIT_WIDTH);
+    }
+    const drawing = view.phase === "draw";
+    for (let i = 0; i < view.count; i++) {
+      const n = view.stars[i].n;
+      const b = Math.min(n, view.bounces[i]);
+      const color = view.colors[i] ?? "#ffffff";
+      const a = alpha * (i === 0 ? 1 : dim);
+      const newest = Math.max(0, b - 2);
+      const lit = starLitAt(view, i);
+      // the star lit: its older chords (all of them once its pen went round; a retraced star's first pass is all of it)
+      if (lit > 0.002 && newest > 0) {
+        ctx.beginPath();
+        this.traceChords(ctx, view, i, 0, Math.min(newest, starPoints(view, i)), false);
+        this.strokeBright(ctx, color, a * lit, w, SC_LIT_WIDTH);
+      }
+      // the newest two chords and the one being drawn (to the ball)
+      const toBall = drawing && b < n;
+      if (b > newest || toBall) {
+        ctx.beginPath();
+        this.traceChords(ctx, view, i, newest, b, toBall);
+        this.strokeBright(ctx, color, a, w, SC_BRIGHT_WIDTH);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** --- star-lift --- A lit star's ring pulse: from its inner circle out to the rim, fading, in the ball's colour. */
+  private drawPulses(ctx: CanvasRenderingContext2D, view: StarChordsView) {
+    if (view.phase !== "draw") return;
+    const f = view.field;
+    for (let i = 0; i < view.count; i++) {
+      if (view.bounces[i] < starPoints(view, i) - 1) continue;
+      const age = Math.max(0, view.cycleTime - starLightAt(view, i));
+      if (age >= PULSE_SEC) continue;
+      const p = age / PULSE_SEC;
+      const r0 = envelopeRadius(f.chordRadius, view.stars[i]);
+      ctx.strokeStyle = view.colors[i] ?? "#ffffff";
+      ctx.globalAlpha = 0.75 * (1 - p) * (1 - p);
+      ctx.lineWidth = Math.max(1, 2.4 * view.lineWidth * (1 - 0.6 * p));
+      ctx.beginPath();
+      ctx.arc(f.cx, f.cy, r0 + (f.radius - r0) * ease(p), 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** --- star-lift --- Adds ball `i`'s chords from vertex `from` to vertex `to` to the path (and on to the ball with `toBall`). */
+  private traceChords(ctx: CanvasRenderingContext2D, view: StarChordsView, i: number, from: number, to: number, toBall: boolean) {
+    const f = view.field;
+    const r = f.chordRadius;
+    const s = view.stars[i];
+    let a = vertexAngle(view.theta0[i], from, s);
+    ctx.moveTo(f.cx + r * Math.cos(a), f.cy + r * Math.sin(a));
+    for (let j = from + 1; j <= to; j++) {
+      a = vertexAngle(view.theta0[i], j, s);
+      ctx.lineTo(f.cx + r * Math.cos(a), f.cy + r * Math.sin(a));
+    }
+    if (toBall) ctx.lineTo(view.x[i], view.y[i]);
+  }
+
+  /** --- star-lift --- Strokes the path bright: a wide faint glow, then the core (strength `a`, 0–1, of the bright chords'; `core` × the line width). */
+  private strokeBright(ctx: CanvasRenderingContext2D, color: string, a: number, w: number, core: number) {
+    if (a <= 0.002) return;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = GLOW_ALPHA * a;
+    ctx.lineWidth = GLOW_WIDTH * w;
+    ctx.stroke();
+    ctx.globalAlpha = SC_BRIGHT_ALPHA * a;
+    ctx.lineWidth = core * w;
+    ctx.stroke();
   }
 
   /** The thin circle (the page's wall colour; by angle with rainbow walls), brighter for a moment as the stars close. */
@@ -305,14 +493,15 @@ export class StarChordsLayer {
   /**
    * Keeps the offscreen layer in step with the view: started over with a new run, raster, circle, line width or colours (the
    * chords of the cycle so far redrawn) and with every new cycle (empty); otherwise only the chords completed since the last frame.
+   * --- star-lift --- The chords go on at `chordAlpha` (a change repaints the layer too).
    */
-  private paintLayer(view: StarChordsView, dpr: number) {
+  private paintLayer(view: StarChordsView, dpr: number, chordAlpha: number) {
     if (typeof document === "undefined") return;
     const f = view.field;
     const half = f.radius + 4 + 2 * view.lineWidth;
     const size = Math.max(1, Math.ceil(2 * half * dpr));
     const newRun = view.generation !== this.gen;
-    const fresh = newRun || size !== this.size || dpr !== this.dpr || f.cx !== this.cx || f.cy !== this.cy || f.chordRadius !== this.chordRadius || view.lineWidth !== this.lineWidth || view.colorVersion !== this.colorVersion || view.count !== this.drawn.length;
+    const fresh = newRun || size !== this.size || dpr !== this.dpr || f.cx !== this.cx || f.cy !== this.cy || f.chordRadius !== this.chordRadius || view.lineWidth !== this.lineWidth || view.colorVersion !== this.colorVersion || view.count !== this.drawn.length || chordAlpha !== this.chordAlpha; /* --- star-lift --- */
     if (fresh || !this.layer || !this.g) {
       if (!this.layer) this.layer = document.createElement("canvas");
       if (this.layer.width !== size) this.layer.width = size;
@@ -327,6 +516,7 @@ export class StarChordsLayer {
       this.chordRadius = f.chordRadius;
       this.lineWidth = view.lineWidth;
       this.colorVersion = view.colorVersion;
+      this.chordAlpha = chordAlpha; // --- star-lift ---
       if (this.drawn.length !== view.count) this.drawn = new Float64Array(view.count);
       this.cycle = -1;
       // (a new run forgets the last cycle's count; a repaint for a new size, line or colours keeps it)
@@ -370,7 +560,7 @@ export class StarChordsLayer {
     }
     const share = pending > SC_FRAME_CHORDS ? SC_FRAME_CHORDS / pending : 1;
     const perChord = pending <= PER_CHORD_LIMIT;
-    g.globalAlpha = CHORD_ALPHA;
+    g.globalAlpha = chordAlpha; // --- star-lift --- (the older chords' strength in a staged run)
     g.lineWidth = view.lineWidth;
     g.lineCap = "round";
     g.lineJoin = "round";

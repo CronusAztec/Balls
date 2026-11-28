@@ -15,6 +15,8 @@ import {
   contrast,
   drawEndBannerStrip,
   endBannerEntrance,
+  endBannerMarkY,
+  endBannerPlateHeight,
   endBannerPlateLuminance,
   endBannerSubLines,
   endBannerTitleColor,
@@ -24,13 +26,19 @@ import {
   placeEndBanner,
 } from "@/components/simulator/endBanner";
 import { BEAT_DROP_ON_TIME_MS, DEFAULT_BEAT_DROP_LABELS } from "@/components/simulator/beatDropRenderer";
+import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaRenderOptions } from "@/components/simulator/arenaRenderer"; // --- verdict-plate ---
+import { DEFAULT_JDM_RHYTHM_LABELS, PaddleLayer, RunnerLayer, type JdmRhythmRenderOptions } from "@/components/simulator/jdmRhythmRenderer";
+import { DEFAULT_LAND_CLAIM_LABELS, LandClaimLayer, landClaimVerdictShows, landClaimVerdictWords, type LandClaimLabels, type LandClaimRenderOptions } from "@/components/simulator/landClaimRenderer";
+import { TeamLayer, type TeamLabels } from "@/components/simulator/teamsRenderer";
 import { FL_NOIR_TIMER_GAP, FL_NOIR_TITLE_W, flNoirTitleWidth } from "@/components/simulator/fightLeague/noir";
 import { GLASS_LABEL_AT, drawGlassWorld, glassDots, glassLabelX, type GlassRenderOptions } from "@/components/simulator/glassRenderer";
 import { MAZE_BANNER_FULL_MS, mazeBannerPhase, mazeStripPlace } from "@/components/simulator/mazeRenderer";
 import { gateLabelHidden } from "@/components/simulator/multiplierRenderer";
 import { PODIUM_REST_BOTTOM, PODIUM_REST_TOP, podiumRestRows } from "@/components/simulator/raceRenderer";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { defaultSettings } from "@/lib/settings";
+import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import type { PhysicsEngine } from "@/lib/physics/engine";
+import type { ModeId } from "@/lib/physics/types";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { BADGE_HEIGHT, BADGE_INSET, badgeMetrics } from "@/lib/watermark/layout";
 import { LiveHud, liveBadgeBox, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
@@ -158,6 +166,37 @@ describe("the end banner's layout", () => {
     expect(noted.noteY + noted.noteFs / 2).toBeLessThan(noted.height);
     const plain = layoutEndBanner(ctx(), { title: "AQUA ESCAPED", sub: "in 33.9s", color: "#22d3ee" }, 1080);
     expect(noted.height).toBeGreaterThan(plain.height);
+  });
+
+  // --- poly-banner --- (round two, B1) a plate that keeps inside a figure, and the height a mode clears a place by
+  it("keeps a plate inside a given width: the line under the title on two lines first, then smaller", () => {
+    const sub = "All 16 voices back in phase after 1 cycle";
+    const wide = layoutEndBanner(ctx(), { title: "IN PHASE!", sub: "back in phase", color: "#a3e635", maxWidth: 2000 }, 1080);
+    expect(wide).toEqual(layoutEndBanner(ctx(), { title: "IN PHASE!", sub: "back in phase", color: "#a3e635" }, 1080)); // never wider than without it
+    for (const maxWidth of [700, 560, 420]) {
+      const lay = layoutEndBanner(ctx(), { title: "IN PHASE!", sub, color: "#a3e635", maxWidth }, 1080);
+      expect(lay.width, String(maxWidth)).toBeLessThanOrEqual(maxWidth + 1e-6);
+      expect(lay.subLines).toHaveLength(2);
+      expect(lay.height).toBeLessThanOrEqual(endBannerPlateHeight(1080, 2) + 1e-6);
+    }
+    // the layer measures it again when the width changes, and keeps it apart from the same words without one
+    const layer = new EndBannerLayer();
+    const g = ctx();
+    const narrow = layer.layout(g, { title: "IN PHASE!", sub, color: "#a3e635", maxWidth: 560 }, 1080).width;
+    expect(narrow).toBeLessThanOrEqual(560);
+    expect(layer.layout(g, { title: "IN PHASE!", sub, color: "#a3e635" }, 1080).width).toBeGreaterThan(narrow);
+  });
+
+  it("knows the plate's height for a title and its lines before the words are laid out: the tallest the layout makes it", () => {
+    const g = ctx();
+    for (const side of [200, 390, 540, 1080, 1920]) {
+      expect(endBannerPlateHeight(side, 0)).toBeCloseTo(layoutEndBanner(g, { title: "IN PHASE!", sub: "", color: "#a3e635" }, side).height, 9);
+      expect(endBannerPlateHeight(side, 1)).toBeCloseTo(layoutEndBanner(g, { title: "IN PHASE!", sub: "in phase", color: "#a3e635" }, side).height, 9);
+      const two = layoutEndBanner(g, { title: "IN PHASE!", sub: "back in phase after one cycle", color: "#a3e635", maxWidth: 0.6 * side }, side);
+      expect(two.subLines).toHaveLength(2);
+      expect(two.height).toBeLessThanOrEqual(endBannerPlateHeight(side, 2) + 1e-9);
+      if (two.subFs === Math.max(13, 0.042 * side)) expect(endBannerPlateHeight(side, 2)).toBeCloseTo(two.height, 9);
+    }
   });
 });
 
@@ -321,6 +360,43 @@ describe("the canvas' wiring of the end banner", () => {
     expect(canvasSource).toMatch(/if \(captionLayer\.usesTop && captionLayer\.stackEdges\.top > top\) top = captionLayer\.stackEdges\.top \+ 0\.01 \* minDim;/);
     expect(canvasSource).toMatch(/if \(captionLayer\.usesBottom && captionLayer\.stackEdges\.bottom < bottom\) bottom = captionLayer\.stackEdges\.bottom - 0\.01 \* minDim;/);
     expect(canvasSource).toMatch(/b\.draw\(placeEndBanner\(squareTop \+ b\.at \* minDim - b\.height \/ 2, b\.height, top, bottom, cy - b\.height \/ 2\)\)/);
+  });
+
+  // --- mark-clear --- (round two, B-g1 review) a creator's own text mark never runs across a plate with a place of its own
+  it("puts a creator's text mark under the banners in the middle, and under a plate with a place of its own it would cross", () => {
+    // a 1080 px square from y = 0: the mark is 48.6 px tall (4.5 %), and its band is 0.6 of that around its centre
+    const fs = 0.045 * 1080;
+    const plate = (y: number, h: number, shown = true) => ({ shown, rect: { y, h } });
+    // nothing on the square: the middle; banners stacked in the middle down to 655: under them, as before
+    expect(endBannerMarkY(540, fs, undefined, [])).toBe(540);
+    expect(endBannerMarkY(540, fs, 655, [])).toBeCloseTo(655 + 8 + 0.8 * fs, 9);
+    // Polyrhythm's IN PHASE! inside the circle of chords (its centre at the square's, 230 px tall): under its plate
+    const chords = plate(540 - 115, 230);
+    expect(endBannerMarkY(540, fs, undefined, [chords])).toBeCloseTo(655 + 8 + 0.8 * fs, 9);
+    // a plate away from the middle (the rings' lower half, at 73 %), or one not shown this frame: the mark stays in the middle
+    expect(endBannerMarkY(540, fs, undefined, [plate(0.73 * 1080 - 115, 230)])).toBe(540);
+    expect(endBannerMarkY(540, fs, undefined, [plate(425, 230, false)])).toBe(540);
+    // moved under one plate onto another: under that one too, whichever order they come in
+    const lower = plate(660, 100);
+    expect(endBannerMarkY(540, fs, undefined, [lower, chords])).toBeCloseTo(760 + 8 + 0.8 * fs, 9);
+    expect(endBannerMarkY(540, fs, undefined, [chords, lower])).toBeCloseTo(760 + 8 + 0.8 * fs, 9);
+    // the plate's full-size box: the mark keeps still through the banner's entrance
+    const canvas = fakeCanvas(1080, 1080);
+    const g = canvas.ctx as unknown as CanvasRenderingContext2D;
+    const layer = new EndBannerLayer();
+    const words = { title: "IN PHASE!", sub: "All 16 voices back in phase after 1 cycle", color: "#a3e635", maxWidth: 560 };
+    const marks = new Set<number>();
+    for (let i = 0; i < 20; i++) {
+      layer.draw(g, words, 540, 540, 1080, 1000 / 60);
+      layer.endFrame();
+      const y = endBannerMarkY(540, fs, undefined, [layer]);
+      expect(y - 0.6 * fs).toBeGreaterThan(layer.rect.y + layer.rect.h);
+      marks.add(y);
+    }
+    expect(marks.size).toBe(1);
+    // the canvas: under the stack in the middle, else the middle, then clear of every banner's plate of the frame
+    expect(canvasSource).toMatch(/const wy = endBannerMarkY\(cy, fs, stacked > 0 \? cy \+ totalH \/ 2 : undefined, endBanners\);/);
+    expect(canvasSource).toMatch(/ctx\.fillText\(p\.watermarkText, cx, wy\);/);
   });
 
   it("gives Classic an end card once the ball is out of the last ring, but not in a loop clip, with a roster or with captions", () => {
@@ -728,3 +804,237 @@ describe("the end lines' copy, round two", () => {
     }
   });
 });
+
+/* ------------------------------------------------------------------ the verdicts the modes draw themselves (round two, B6) */
+
+// --- verdict-plate --- (round two, B6) Battle's and Capture the Flag's winner card, the Beat Runner's LEVEL COMPLETE!, Paddle
+// Keep-Up's GAME OVER and win card and Land Claim's verdict come on the shared plate: the squares, the confetti, the finish pole and
+// the ball ran through their bare words for the whole hold (final review m2-11, m2-04's draw half), and Land Claim's SUCH A CLOSE
+// BATTLE named no winner but in its small line, under a second card of the teams layer (m3-landclaim-verdict).
+
+const PORTRAIT = { width: 1080, height: 1920 };
+const DRAWING_CALLS = new Set(["fill", "stroke", "fillRect", "fillText", "strokeText", "drawImage"]);
+const ARENA_OPTIONS: ArenaRenderOptions = { wallColor: () => "#38bdf8", wallThickness: 4, showWallGlow: true, showGlow: false, showTrails: true, roster: null, showNames: false, numbers: true, labels: DEFAULT_ARENA_LABELS };
+const RHYTHM_OPTIONS: JdmRhythmRenderOptions = { wallColor: () => "#38bdf8", wallThickness: 4, showWallGlow: true, showGlow: false, showTrails: true, bodyColor: "#ffffff" };
+const lcOptions = (nowMs: number, labels: LandClaimLabels = DEFAULT_LAND_CLAIM_LABELS, roster: LandClaimRenderOptions["roster"] = []): LandClaimRenderOptions => ({ dpr: 1, roster, showNames: false, showTrails: true, wallThickness: 4, labels, nowMs });
+
+/** A run of `mode` in a 9:16 world, played until `until` holds (at most 90 s), then `moreSec` on. */
+function playUntil(mode: ModeId, seed: number, until: (e: PhysicsEngine) => boolean, moreSec = 0, patch: Partial<SimulatorSettings> = {}): PhysicsEngine {
+  const s = { ...defaultSettings(mode), ...patch } as SimulatorSettings;
+  const f = finderRequestOfSettings(s, PORTRAIT, 60);
+  const e = createEngineForSettings(f.physicsConfig, f.mode, f.modeSettings, seed) as PhysicsEngine;
+  for (let frame = 0; frame < 90 * 60 && !until(e); frame++) e.update(1000 / 60, 0);
+  expect(until(e), `${mode} seed ${seed}`).toBe(true);
+  for (let frame = 0; frame < Math.round(60 * moreSec); frame++) e.update(1000 / 60, 0);
+  return e;
+}
+
+/**
+ * The frame's drawing calls around the verdict: the plate is the last fill before its title, then its two border strokes, and
+ * after the title only the plate's own words – no confetti, square, ball, pole or second card crosses them.
+ */
+function plateOrder(calls: FakeCall[], layer: EndBannerLayer, side: number, g: CanvasRenderingContext2D) {
+  const draws = calls.filter((c) => DRAWING_CALLS.has(c.name));
+  const words = [layer.text.title, ...layer.layout(g, layer.text, side).subLines, layer.text.note ?? ""].filter((w) => w !== "");
+  const titleAt = draws.findIndex((c) => c.name === "fillText" && c.args[0] === layer.text.title);
+  const plateAt = draws.map((c) => c.name).lastIndexOf("fill", titleAt);
+  return {
+    titleAt,
+    plateAt,
+    border: draws.slice(plateAt + 1, titleAt).map((c) => c.name),
+    after: draws.slice(titleAt).map((c) => (c.name === "fillText" ? String(c.args[0]) : `<${c.name}>`)),
+    words,
+    titles: draws.filter((c) => (c.name === "fillText" || c.name === "strokeText") && c.args[0] === layer.text.title).length,
+  };
+}
+
+describe("the verdicts the modes draw themselves, on the plate (round two, B6)", () => {
+  it("draws Battle's and Capture the Flag's winner card on the plate, over the confetti and the squares, through the whole hold", () => {
+    const cases: [ModeId, number][] = [
+      ["battle", 7],
+      ["ctf", 1], // (won on the score)
+      ["ctf", 7], // (ended on the clock: TIME! under the title)
+    ];
+    for (const [mode, seed] of cases) {
+      const e = playUntil(mode, seed, (x) => x.isSimulationFinished(), 0.5);
+      const layer = new ArenaLayer();
+      // half a second, 1.5 s and 2.5 s into the 3 s the page holds the card
+      for (const holdSec of [0.5, 1.5, 2.5]) {
+        if (holdSec > 0.5) for (let frame = 0; frame < 60; frame++) e.update(1000 / 60, 0);
+        const view = e.getArenaView()!;
+        const canvas = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+        const g = canvas.ctx as unknown as CanvasRenderingContext2D;
+        layer.drawOverlay(g, PORTRAIT.width, PORTRAIT.height, view, ARENA_OPTIONS);
+        const winner = view.winner >= 0 ? DEFAULT_ARENA_LABELS.wins(layer.nameOf(view.winner)) : DEFAULT_ARENA_LABELS.draw;
+        expect(layer.endBanner.text.title, `${mode} ${seed}`).toBe(winner);
+        if (mode === "ctf" && view.byTime) expect(layer.endBanner.text.sub).toMatch(/^TIME! /);
+        const order = plateOrder(canvas.ctx.calls, layer.endBanner, 1080, g);
+        expect(order.titleAt, `${mode} ${seed}`).toBeGreaterThan(0);
+        expect(order.border).toEqual(["stroke", "stroke"]);
+        expect(order.after).toEqual(order.words);
+        expect(order.titles).toBe(1); // (no outlined bare title under it)
+        // the confetti fell before the plate: every one of its pieces is drawn under it
+        expect(canvas.ctx.calls.filter((c) => c.name === "fillRect").length).toBeGreaterThan(20);
+        // the box the watermark is told about: inside the square, centred across it, a little above its middle
+        expect(layer.endBanner.shown).toBe(true);
+        const r = layer.endBanner.rect;
+        expect(r.x + r.w / 2).toBeCloseTo(540, 6);
+        expect(r.y + r.h / 2).toBeCloseTo(420 + 0.46 * 1080, 6);
+        expect(r.x).toBeGreaterThan(0);
+        expect(r.x + r.w).toBeLessThan(1080);
+      }
+    }
+  });
+
+  it("draws LEVEL COMPLETE! over the finish pole and Paddle Keep-Up's GAME OVER and win card inside the field, on the plate", () => {
+    // the Beat Runner, half a second past the line
+    const runner = playUntil("runner", 7, (x) => x.getRunnerView().crossed, 0.5);
+    const rr = new RunnerLayer();
+    const rc = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+    const rg = rc.ctx as unknown as CanvasRenderingContext2D;
+    rr.drawOverlay(rg, runner.getRunnerView(), DEFAULT_JDM_RHYTHM_LABELS, RHYTHM_OPTIONS);
+    expect(rr.endBanner.text.title).toBe("LEVEL COMPLETE!");
+    const ro = plateOrder(rc.ctx.calls, rr.endBanner, runner.getRunnerView().field.size, rg);
+    expect(ro.border).toEqual(["stroke", "stroke"]);
+    expect(ro.after).toEqual(ro.words);
+    expect(ro.titles).toBe(1);
+    expect(rr.endBanner.shown).toBe(true);
+    // Paddle Keep-Up: GAME OVER without a goal, and the win card of the page's goal of 20, a second into the card
+    for (const [patch, won] of [[{ pdGoal: 0 }, false], [{ pdGoal: 20 }, true]] as const) {
+      const paddle = playUntil("paddle", 7, (x) => x.getPaddleView().over, 1, patch);
+      const view = paddle.getPaddleView();
+      expect(view.won).toBe(won);
+      const pd = new PaddleLayer();
+      const pc = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+      const pg = pc.ctx as unknown as CanvasRenderingContext2D;
+      pd.drawOverlay(pg, view, DEFAULT_JDM_RHYTHM_LABELS, true);
+      expect(pd.endBanner.text.title).toBe(won ? "20 CATCHES!" : "GAME OVER");
+      const po = plateOrder(pc.ctx.calls, pd.endBanner, view.field.size, pg);
+      expect(po.border).toEqual(["stroke", "stroke"]);
+      expect(po.after).toEqual(po.words);
+      expect(po.titles).toBe(1);
+      // the plate keeps inside the field's walls (the words narrower, the line under the title on two lines first)
+      const r = pd.endBanner.rect;
+      expect(r.x).toBeGreaterThanOrEqual(view.field.left - 1e-6);
+      expect(r.x + r.w).toBeLessThanOrEqual(view.field.left + view.field.width + 1e-6);
+    }
+  });
+
+  it("comes in on the run's own clock: 0.8 on the verdict's step, settled by 0.24 s, the same frame drawn the same way every time", () => {
+    const e = playUntil("battle", 7, (x) => x.isSimulationFinished());
+    const frameOf = (layer: ArenaLayer) => {
+      const canvas = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+      layer.drawOverlay(canvas.ctx as unknown as CanvasRenderingContext2D, PORTRAIT.width, PORTRAIT.height, e.getArenaView()!, ARENA_OPTIONS);
+      return canvas.ctx.calls.filter((c) => c.name !== "measureText"); // (a new layer measures its words once)
+    };
+    const kept = new ArenaLayer();
+    const first = frameOf(kept);
+    expect(first.find((c) => c.name === "scale")!.args[0]).toBeCloseTo(0.8, 6);
+    for (let frame = 0; frame < 15; frame++) e.update(1000 / 60, 0);
+    const settled = frameOf(kept);
+    expect(settled.some((c) => c.name === "scale")).toBe(false);
+    // a layer that never saw the earlier frames (a recording, the fast export) draws this one exactly alike
+    expect(frameOf(new ArenaLayer())).toEqual(settled);
+    // a frame without the card forgets it: the next run's card comes in again
+    kept.drawOverlay(fakeCanvas(10, 10).ctx as unknown as CanvasRenderingContext2D, PORTRAIT.width, PORTRAIT.height, { ...e.getArenaView()!, finished: false }, ARENA_OPTIONS);
+    expect(kept.endBanner.shown).toBe(false);
+  });
+
+  it("names Land Claim's winner in the headline whatever the verdict, in English, Polish and Spanish", () => {
+    const land = Int32Array.from([30, 102, 96, 60]);
+    const view = (kind: "domination" | "close" | "plain", winner: number, second: number) => ({ verdict: { winner, second, kind, share: 0, margin: 0, tie: false }, land, total: 288 });
+    const names = ["France", "Brazil", "Spain", "Colombia"];
+    const colours = ["#0055a4", "#009c3b", "#aa151b", "#fcd116"];
+    const out = { title: "", sub: "", note: "", color: "" };
+    const of = (v: ReturnType<typeof view>, L: LandClaimLabels = DEFAULT_LAND_CLAIM_LABELS) => ({ ...landClaimVerdictWords(v, L, (t) => names[t], (t) => colours[t], out) });
+    // the photo finish: the winner's name is the title now, the two shares and SUCH A CLOSE BATTLE under it
+    expect(of(view("close", 1, 2))).toEqual({ title: "BRAZIL WINS", sub: "BRAZIL 35% · SPAIN 33%", note: "SUCH A CLOSE BATTLE", color: "#009c3b", maxWidth: undefined });
+    expect(of(view("domination", 1, 2))).toEqual({ title: "BRAZIL WINS", sub: "35% OF THE LAND", note: "DOMINATION", color: "#009c3b", maxWidth: undefined });
+    expect(of(view("plain", 3, 1))).toMatchObject({ title: "COLOMBIA WINS", sub: "21% OF THE LAND", note: "", color: "#fcd116" });
+    expect(of(view("plain", -1, -1))).toMatchObject({ title: "NO LAND CLAIMED", sub: "", note: "" });
+    // the page's own words, as Simulator.tsx fills them from the messages
+    const labels = (locale: "pl" | "es"): LandClaimLabels => {
+      const m = CATALOGS[locale].LandClaim as Record<string, string>;
+      return { ...DEFAULT_LAND_CLAIM_LABELS, domination: m.canvasDomination, close: m.canvasClose, wins: (n) => m.canvasWins.replace("[name]", n), share: (p) => m.canvasShare.replace("[pct]", String(p)), noLand: m.canvasNoLand };
+    };
+    expect(of(view("close", 1, 2), labels("pl"))).toMatchObject({ title: "BRAZIL WYGRYWA", note: "CO ZA WYRÓWNANA BITWA" });
+    expect(of(view("domination", 3, 1), labels("es"))).toMatchObject({ title: "GANA COLOMBIA", sub: "21% DEL TERRENO", note: "DOMINACIÓN" });
+    // a ball that ate the arena, or a pyramid of one: no verdict, so the teams' card is not held back either
+    expect(landClaimVerdictShows({ finished: true, ate: false, pyramid: null, teams: 4 })).toBe(true);
+    expect(landClaimVerdictShows({ finished: true, ate: true, pyramid: null, teams: 4 })).toBe(false);
+    expect(landClaimVerdictShows({ finished: false, ate: false, pyramid: null, teams: 4 })).toBe(false);
+  });
+
+  it("says Land Claim's verdict once: on its plate over the confetti, with the teams layer's card left out but its winner kept", () => {
+    const roster = [
+      { name: "France", color: "#0055a4", emoji: "" },
+      { name: "Brazil", color: "#009c3b", emoji: "" },
+      { name: "Spain", color: "#aa151b", emoji: "" },
+      { name: "Colombia", color: "#fcd116", emoji: "" },
+    ];
+    for (const seed of [1, 7]) {
+      const e = playUntil("landClaim", seed, (x) => x.isSimulationFinished(), 1, { lcHud: false });
+      const view = e.getLandClaimView();
+      expect(landClaimVerdictShows(view)).toBe(true);
+      const lc = new LandClaimLayer();
+      const canvas = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+      const g = canvas.ctx as unknown as CanvasRenderingContext2D;
+      // two frames: the first throws the confetti, the second draws it under the plate
+      lc.drawOverlay(g, view, e.getBalls().length, lcOptions(e.getElapsedMs(), DEFAULT_LAND_CLAIM_LABELS, roster), { inset: 0, dtMs: 1000 / 60 });
+      canvas.ctx.calls.length = 0;
+      lc.drawOverlay(g, view, e.getBalls().length, lcOptions(e.getElapsedMs(), DEFAULT_LAND_CLAIM_LABELS, roster), { inset: 0, dtMs: 1000 / 60 });
+      const name = roster[view.verdict.winner].name.toUpperCase();
+      expect(lc.endBanner.text.title, `seed ${seed} (${view.verdict.kind})`).toBe(`${name} WINS`);
+      expect(lc.bannerDrawn).toBe(true);
+      const order = plateOrder(canvas.ctx.calls, lc.endBanner, view.field.side, g);
+      expect(order.border).toEqual(["stroke", "stroke"]);
+      expect(order.after).toEqual(order.words);
+      expect(canvas.ctx.calls.filter((c) => c.name === "fillRect").length).toBeGreaterThan(20);
+      // the teams layer: no "Brazil wins!" card and no confetti of its own, but the winner it reports stays the verdict's
+      const teams = new TeamLayer();
+      const labels: TeamLabels = { bounces: "Bounces", walls: "Walls", escapes: "Escapes", kills: "Kills", win: "Win", blocks: "Blocks", wins: (n) => `${n} wins!`, tie: "It's a tie!", team: (n) => `Team ${n}` };
+      teams.beginFrame(e, { roster, showNames: false, showScoreboard: true, position: "top-left", labels });
+      const tc = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+      teams.drawOverlay(tc.ctx as unknown as CanvasRenderingContext2D, e, { width: PORTRAIT.width, height: PORTRAIT.height, dtMs: 16, inset: 0, modeBanner: true, modeVerdict: true });
+      expect(texts(tc.ctx.calls).some((t) => / wins!$/.test(t))).toBe(false);
+      expect(teams.winnerText()).toBe(roster[view.verdict.winner].name);
+      // (a mode without a verdict of its own keeps the card: the same layer, not told, draws it)
+      const shown = new TeamLayer();
+      shown.beginFrame(e, { roster, showNames: false, showScoreboard: true, position: "top-left", labels });
+      const sc = fakeCanvas(PORTRAIT.width, PORTRAIT.height);
+      shown.drawOverlay(sc.ctx as unknown as CanvasRenderingContext2D, e, { width: PORTRAIT.width, height: PORTRAIT.height, dtMs: 16, inset: 0, modeBanner: true });
+      expect(texts(sc.ctx.calls).some((t) => / wins!$/.test(t))).toBe(true);
+    }
+    // the canvas tells the teams layer, and its drawOverlay call no longer moves the plate for a card
+    expect(canvasSource).toMatch(/modeVerdict: !!lcView && landClaimVerdictShows\(lcView\)/);
+    expect(canvasSource).not.toMatch(/lcLayer\.drawOverlay\([^\n]*teamBanner/);
+  });
+
+  it("tells the watermark where each plate is, so the badge never sits on a verdict", () => {
+    for (const [view, layer] of [
+      ["arenaView", "arenaLayer"],
+      ["rrView", "rrLayer"],
+      ["pdView", "pdLayer"],
+      ["lcView", "lcLayer"],
+    ]) {
+      expect(canvasSource).toMatch(new RegExp(`if \\(${view} && ${layer}\\.endBanner\\.shown\\) hud\\.block\\(${layer}\\.endBanner\\.rect\\.x, ${layer}\\.endBanner\\.rect\\.y, ${layer}\\.endBanner\\.rect\\.w, ${layer}\\.endBanner\\.rect\\.h\\);`));
+    }
+    // the arena's card in a 9:16 export's square: the badge takes a bottom corner clear of it on both of its sides
+    const e = playUntil("battle", 7, (x) => x.isSimulationFinished(), 1);
+    const layer = new ArenaLayer();
+    layer.drawOverlay(fakeCanvas(1080, 1080).ctx as unknown as CanvasRenderingContext2D, 1080, 1080, e.getArenaView()!, ARENA_OPTIONS);
+    const r = layer.endBanner.rect;
+    const hud = new LiveHud().reset(1);
+    hud.block(r.x, r.y, r.w, r.h);
+    const box = liveBadgeBox({ area: { x: 0, y: 0, width: 1080, height: 1080 }, recording: PORTRAIT });
+    const badge = { width: 270, height: badgeMetrics(1080).height };
+    const out: LivePlacement = { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: false };
+    for (const clipMs of [0, 6000]) {
+      placeLiveBadge(box, badge.width, badge.height, clipMs, hud, out);
+      expect(out.free).toBe(true);
+      const apart = out.x + out.width <= r.x || out.x >= r.x + r.w || out.y + out.height <= r.y || out.y >= r.y + r.h;
+      expect(apart, `${clipMs} ms: ${JSON.stringify(out)} vs ${JSON.stringify(r)}`).toBe(true);
+    }
+  });
+});
+// --- end verdict-plate ---

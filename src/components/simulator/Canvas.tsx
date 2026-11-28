@@ -14,9 +14,10 @@ import { DRAWING_MACHINE_DATA_KEYS, DrawingMachineLayer, drawingMachineExtentPx,
 import { PERFECT_FIT_DATA_KEYS, PERFECT_FIT_ENGLISH, PerfectFitLayer, perfectFitExtentPx, writePerfectFitDataset, type PerfectFitLabels, type PerfectFitRenderOptions } from "./perfectFitRenderer"; // --- perfect-fit ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
+import { PolyrhythmHoldClock, polyrhythmBannerAt, polyrhythmBannerWidth } from "./polyrhythmRenderer"; // --- poly-hold --- --- poly-banner ---
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 // --- jdm-collisions ---
-import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
+import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideLabelPlate, type CollideRenderOptions } from "./collideRenderer";
 // --- gerald-glass ---
 import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glassRenderer";
 // --- gerald-multipliers ---
@@ -39,7 +40,7 @@ import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 // --- camera --- zoom, screen shake, slow motion on near misses and the escape replay (lib/simulation/camera.ts)
 import { CinematicCamera } from "./cameraRenderer";
-import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
+import { DEFAULT_CAMERA_SETTINGS, cameraTransform, type CameraSettings } from "@/lib/simulation/camera";
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
 import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
 import { ExitSplatLayer } from "./exitSplatRenderer"; // --- gerald-exit-splat ---
@@ -128,11 +129,11 @@ import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip"; // --- f
 import { prefersReducedMotion } from "@/lib/reducedMotion";
 // --- end fl-overhaul ---
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
-import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
+import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, landClaimVerdictShows, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer"; // (--- verdict-plate --- landClaimVerdictShows)
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
-import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteFlCardCaptions, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { SWARM_DATA_KEYS, SwarmLayer, writeSwarmDataset } from "./multiplySwarmRenderer"; // --- multiply-race ---
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
@@ -141,7 +142,7 @@ import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type Hoo
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
-import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { EndBannerLayer, accumulationBannerAt, endBannerMarkY, placeEndBanner } from "./endBanner"; // --- end-banner --- (--- mark-clear ---)
 import { SHATTER_INSET, collapseDone, drawShatterDamage, drawShatterShards, ringFallStartMs, shatterBand } from "./shatterRenderer"; // --- shatter-demolition ---
 import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawEndGhost, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks --- (--- end-ghost --- review fix B2)
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
@@ -311,7 +312,7 @@ export interface CanvasLabels {
   /** Fight League: VS, FIGHT!, KO!, the winner banner's words and the stat lines' abbreviations. */
   fightLeague?: FightLeagueLabels;
   // --- land-claim ---
-  /** Land Claim: the title line, the counters, DOMINATION / SUCH A CLOSE BATTLE / "[name] CLAIMS THE MOST" and the share of the land. */
+  /** Land Claim: the title line, the counters and the verdict – "[name] WINS", the share of the land, DOMINATION / SUCH A CLOSE BATTLE as its tag (--- verdict-plate --- `claims` is no longer drawn). */
   landClaim?: LandClaimLabels;
   // --- string-circle ---
   /** The String Battle's circle style: the title line, the winner banner and its share of the rim, the standings strip's "+N". */
@@ -657,6 +658,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   // --- fl-overhaul --- (Stage 3) Fight League's layer while it draws (the recorder's background hook paints its stage and plates)
   const flLayerRef = useRef<FightLeagueLayer | null>(null);
+  const machineLayerRef = useRef<BeatMachineLayer | null>(null); // --- stage-fill --- (round two, B8: the recorder's bars)
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
@@ -874,6 +876,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
       flLayerRef.current?.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
+      machineLayerRef.current?.paintExportBackdrop(c, width, height); // --- stage-fill --- (round two, B8) Beat Machines' stage in the bars
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false) || endBannerHoldRef.current, // --- camera --- (--- captions --- and the question's answer; --- end-banner --- and a verdict not read yet)
@@ -1030,6 +1033,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bobBodyColor = (ball: { color: string }) => ball.color;
     // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the renderer's options, refreshed per frame.
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
+    const polyHold = new PolyrhythmHoldClock(); // --- poly-hold --- (round two, B1) the frame time a finished run is held: its flashes fade
     // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
     const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
     // --- jdm-double-pendulum --- Double Pendulum: the renderer's options, refreshed per frame.
@@ -1299,6 +1303,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const liveHud = new LiveHud();
     const liveBoard = { x: 0, y: 0, w: 0, h: 0 };
     const liveSquare: HudSquare = { x0: 0, y0: 0, side: 0 };
+    // --- badge-clear --- (round two, B7a) the world's view for the HUD report, and Collision Playground's caption plate
+    const liveWorld: HudView = { scale: 1, tx: 0, ty: 0 };
+    const collidePlate: CollideLabelPlate = { x: 0, y: 0, w: 0, h: 0 };
     const liveText = { fontSize: 0, topY: 0, bottomY: 0 };
     const liveEdge = emptyEdgeTextLines();
     const liveRecording = { startMs: 0, width: 0, height: 0 };
@@ -1965,9 +1972,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // drawn from the plan at the frame's own simulation time
       const machineView = engine.isBeatMachineMode() ? engine.getBeatMachineView() : null;
       const machineT = machineView ? hoopsRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator) / 1000 : 0;
+      machineLayerRef.current = machineView ? machineLayer : null; // --- stage-fill --- (the recorder's bars follow the stage drawn)
       if (machineView) {
         machineRender.dpr = scale;
         machineRender.showGlow = p.showGlow;
+        machineRender.background = p.backgroundColor; // --- stage-fill --- (round two, B8: the stage fills the frame on the machine's own look)
+        machineRender.backgroundType = themeLookRef.current.backgroundType;
         machineLayer.drawStage(ctx, machineView, machineT, machineRender);
       }
       // --- wave-tank --- Wave Tank: the ridge lines back to front with the barrier among them, the wave-maker and the bells
@@ -2013,6 +2023,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         polyRender.showGlow = p.showGlow;
         polyRender.inLineLabel = (labelsRef.current ?? DEFAULT_LABELS).polyrhythmInLine; // --- phase-spiral ---
         polyRender.meterInHud = !!loopHudRef.current; // --- phase-spiral --- (the loop HUD's counter and bar show the meter instead)
+        // --- poly-hold --- the steps stop at the finish: the last alignment's flash and its ticks fade on the frames' own time
+        polyRender.heldMs = polyHold.frame(engine.getPolyrhythmView(), !p.isPaused && p.isStarted ? frameMs : 0);
         drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
       }
 
@@ -2230,6 +2242,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conveyorRender.wallAlpha = circleAlpha;
         conveyorRender.wallThickness = p.wallThickness;
         conveyorRender.showWallGlow = p.showWallGlow;
+        // --- conveyor-glow --- (round two, B9b) the rings lit over the walls drawn above: those walls, turned as drawn, in their stroke
+        conveyorRender.walls = walls;
+        conveyorRender.rotations = rotations;
+        conveyorRender.ringStyle = (i, a) => (ringRainbow ? ringRainbowColor(i, walls.length, a) : p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(a) : wallColor(i, a));
         conveyorLayer.drawWorld(ctx, conveyorView, conveyorRender);
       }
       // --- orb-grid --- Bouncing Orbs: the slab, the plate or the grid floor under the orbs (the field's perspective)
@@ -2949,9 +2965,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
       if (starView) starLayer.drawFlash(ctx, starView); // --- chord-stars --- every star closing together lights up the circle
       // --- jdm-polyrhythm --- every voice ticking at once lights up the frame.
-      if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
+      if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView(), polyRender.heldMs); // (--- poly-hold --- fading in the hold)
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
-      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
+      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "", collidePlate); // (--- badge-clear --- on a plate)
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- hud-alpha --- (Lane E, E5) the counters, titles and banners over the square at full opacity: the camera pass's 0.6 (the
@@ -3085,11 +3101,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0, portrait: !!flExport && flExport.height > flExport.width }));
         flLayer.noteRenderMs(flBodiesMs + performance.now() - t1);
       }
-      // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner – it names the winner and throws
-      // the confetti unless the teams banner does it for a roster's winner; the band is what the top captions start below
+      // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner with its confetti; the band is
+      // what the top captions start below (--- verdict-plate --- round two, B6: the plate names the winner with a roster too, and the teams
+      // layer's winner card stays out, below)
       if (lcView) {
-        const teamBanner = teamLayer.isActive() && lcView.verdict.winner >= 0 && lcView.verdict.winner < teamLayer.teamsInPlay();
-        modeTopHud = Math.max(modeTopHud, lcLayer.drawOverlay(ctx, lcView, engine.getBalls().length, lcRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner }));
+        modeTopHud = Math.max(modeTopHud, lcLayer.drawOverlay(ctx, lcView, engine.getBalls().length, lcRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 }));
       }
 
       // HUD: mode counters in the centre
@@ -3104,15 +3120,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // (a mode whose payoff is in the middle: the Journey's door, the conveyor's pile).
         const bannerDt = !p.isPaused && p.isStarted ? frameMs : 0;
         let bannersUsed = 0;
-        const bigBanner = (text: string, sub: string, color: string, at?: number) => {
+        // (--- poly-banner --- `at` may ask by the plate's height, and `maxWidth` keeps the plate inside a figure: its words narrower)
+        const bigBanner = (text: string, sub: string, color: string, at?: number | ((height: number) => number | undefined), maxWidth?: number) => {
           if (bannersUsed >= endBanners.length) endBanners.push(new EndBannerLayer());
           const layer = endBanners[bannersUsed++];
           const words = layer.text;
           words.title = text;
           words.sub = sub;
           words.color = color;
+          words.maxWidth = maxWidth; // --- poly-banner ---
           const lay = layer.layout(ctx, words, minDim);
-          blocks.push({ height: lay.height, at, draw: (y) => layer.draw(ctx, words, cx, y + lay.height / 2, minDim, bannerDt) });
+          blocks.push({ height: lay.height, at: typeof at === "function" ? at(lay.height) : at, draw: (y) => layer.draw(ctx, words, cx, y + lay.height / 2, minDim, bannerDt) });
         };
         if (engine.isAccumulationMode()) {
           const frozen = engine.getFrozenBalls().length;
@@ -3244,8 +3262,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- jdm-polyrhythm ---
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
-          // (--- end-banner --- the rings' dots line up from the centre to the top: the banner goes over the lower half)
-          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635", engine.getPolyrhythmView().settings.layout === "rings" ? 0.73 : undefined);
+          const pv = engine.getPolyrhythmView();
+          // (--- end-banner --- the rings' dots line up from the centre to the top: the banner goes over the lower half;
+          // --- poly-banner --- (round two, B1) the arcs' dots end their paths on the baseline or the rim: the banner goes under the
+          // semicircles' baseline, or inside the chords' circle, narrowed to the room between the dots on its rim)
+          const arcsAt = pv.settings.layout === "arcs" ? (height: number) => polyrhythmBannerAt(pv, minDim, height) : undefined;
+          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635", arcsAt ?? (pv.settings.layout === "rings" ? 0.73 : undefined), polyrhythmBannerWidth(pv, minDim));
         }
         // --- jdm-double-pendulum --- the finale of the clip: what the harp played (or the sparring hits, or the seconds of chaos).
         if (isDp) {
@@ -3337,9 +3359,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           blocks.push({ height: orbBannerHeight(bannerFs, sfs), draw: (y) => orbLayer.drawBanner(ctx, OG.title, OG.sub, cx, y, bannerFs, sfs) });
         }
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
+        // (--- end-banner --- round two, B8: over the top of the square, above the ball's path; the title block fades out under it)
         if (bdView && bdLayer.finale(bdView)) {
           const BD = L.beatDrop ?? DEFAULT_BEAT_DROP_LABELS;
-          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs), "#a3e635");
+          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs), "#a3e635", (height) => bdLayer.bannerAt(bdView, height));
         }
         // --- gerald-glass --- Glass Smash: Gerald is HOME.
         if (glassView && glassView.homeReached) {
@@ -3400,7 +3423,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.textBaseline = "middle";
           ctx.globalAlpha = 0.15;
           ctx.fillStyle = "#ffffff";
-          const wy = stacked > 0 ? cy + totalH / 2 + 8 + 0.8 * fs : cy;
+          // --- mark-clear --- (round two, B-g1 review) under the stack in the middle, and under a plate with a place of its own it would
+          // cross: Polyrhythm's IN PHASE! inside the circle of chords (--- poly-banner ---) has its centre in the middle
+          const wy = endBannerMarkY(cy, fs, stacked > 0 ? cy + totalH / 2 : undefined, endBanners);
           ctx.fillText(p.watermarkText, cx, wy);
           ctx.restore();
         }
@@ -3416,6 +3441,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
           modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped() && collapseDone(engine.getShatterView())) /* --- shatter-demolition --- */ || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */ || endBannerMid /* --- end-banner --- (any mode's end banner there) */,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
+          modeVerdict: !!lcView && landClaimVerdictShows(lcView), // --- verdict-plate --- (Land Claim's plate names the winner: no second card)
         });
       }
 
@@ -4036,18 +4062,35 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         hud.topBand(modeTopHud);
         if (teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, liveBoard)) hud.block(liveBoard.x, liveBoard.y, liveBoard.w, liveBoard.h);
         if (arenaView?.field) hud.topBand(liveSquare.y0 + HUD_BAND * sq);
-        if (flView && flLayer.boxesTop < Infinity) hud.bottomBand(flLayer.boxesTop);
+        // --- fl-card-badge --- (round two, B7b) the end card up: the card, the boxes and the fan-made line as blocks, so the badge takes
+        // the strip under the boxes where it holds the badge (the live square, a portrait export); else the boxes' band, as before
+        if (flView && flLayer.boxesTop < Infinity && !noteFightLeagueCard(hud, liveSquare, flLayer, recording ? exportSizeRef.current : null)) hud.bottomBand(flLayer.boxesTop);
         if (sbView && sbView.circle && scLayer.stripTop < Infinity) hud.bottomBand(scLayer.stripTop);
         if (sbView && duelLayer.bannerOn) hud.block(duelLayer.bannerBox.x, duelLayer.bannerBox.y, duelLayer.bannerBox.w, duelLayer.bannerBox.h); // --- string-battle-alive --- (the FINAL DUEL banner)
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
         for (const layer of endBanners) if (layer.shown) hud.block(layer.rect.x, layer.rect.y, layer.rect.w, layer.rect.h); // --- end-banner --- (the badge never sits on the verdict)
         if (mazeView && mazeLayer.bannerDrawn) hud.block(mazeLayer.bannerBox.x, mazeLayer.bannerBox.y, mazeLayer.bannerBox.w, mazeLayer.bannerBox.h); // --- end-banner --- (the maze's banner, or its strip under the maze)
+        // --- verdict-plate --- (round two, B6) the plates the modes draw their verdicts on themselves: the arenas' winner card, LEVEL
+        // COMPLETE!, GAME OVER or the paddle's win card, and Land Claim's verdict
+        if (arenaView && arenaLayer.endBanner.shown) hud.block(arenaLayer.endBanner.rect.x, arenaLayer.endBanner.rect.y, arenaLayer.endBanner.rect.w, arenaLayer.endBanner.rect.h);
+        if (rrView && rrLayer.endBanner.shown) hud.block(rrLayer.endBanner.rect.x, rrLayer.endBanner.rect.y, rrLayer.endBanner.rect.w, rrLayer.endBanner.rect.h);
+        if (pdView && pdLayer.endBanner.shown) hud.block(pdLayer.endBanner.rect.x, pdLayer.endBanner.rect.y, pdLayer.endBanner.rect.w, pdLayer.endBanner.rect.h);
+        if (lcView && lcLayer.endBanner.shown) hud.block(lcLayer.endBanner.rect.x, lcLayer.endBanner.rect.y, lcLayer.endBanner.rect.w, lcLayer.endBanner.rect.h);
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
         else if (realTimeBadge) noteCornerReadouts(hud, liveSquare, true, 1, recording ? 0 : 52); // --- slow-motion --- (the real-time badge alone)
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);
         if (journeyView && p.journeyHud) noteJourneyHud(hud, journeyView.field); // (--- templates --- AI studio step 4b: none switched off)
         if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);
         if (multBoard) noteHomeCounter(hud, liveSquare);
+        // --- badge-clear --- (round two, B7a) the payoffs drawn in the world: the HOME zone on screen (the board's own scroll), the
+        // target and its pile, the heap under a pouring jar and the ANTI-COLLISION plate (through the camera's view; the support bar below)
+        if (multBoard?.board) noteHomeBand(hud, liveSquare, multBoard.board.homeY - multBoard.cameraY);
+        cameraTransform(cam.view, cx, cy, 0, 0, liveWorld);
+        if (bullseyeView) noteBullseyePile(hud, bullseyeView, liveWorld);
+        if (isCollide) {
+          noteCollideHeap(hud, engine.getCollideView(), liveWorld);
+          if (collidePlate.w > 0) hud.block(collidePlate.x, collidePlate.y, collidePlate.w, collidePlate.h);
+        }
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
         if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 5 + (conveyorView.settings.arena === "bowl" && conveyorView.overflow > 0 ? 1 : 0) + (conveyorView.settings.freeze && conveyorView.frozen > 0 ? 1 : 0), "right"); // --- conveyor-count --- (the big counter: five title lines tall, a line more for the spilled and the frozen balls)
         if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
@@ -4063,13 +4106,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");
         if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);
-        if (captionLayer.usesBottom) hud.bottomBand(captionLayer.stackEdges.bottom);
+        // --- fl-card-badge --- (B-g3 review) with Fight League's end card holding the strip under the boxes, the bottom captions (kept
+        // above the boxes) are a block where they are: their band would end the free band above the strip and leave the badge no corner
+        if (captionLayer.usesBottom && !(flView && noteFlCardCaptions(hud, liveSquare, flLayer, recording ? exportSizeRef.current : null, size.width, captionLayer.stackEdges.bottom, captionLayer.starts.bottom))) hud.bottomBand(captionLayer.stackEdges.bottom);
         if (songProgressRef.current !== null) hud.bottomBand(size.height - 9);
         // --- loop-foundation --- the loop HUD drawn live: its title along the top, its counter along the bottom (while recording
         // the recorder draws it into the export frame, clear of the badge there)
         hud.topBand(loopHudLive.top);
         hud.bottomBand(loopHudLive.bottom);
         hud.bottomBand(ringLineBottom); // --- ring-escape --- (the time-in-ring line under the rings)
+        // --- badge-clear --- Pendulum Wave's support bar, held while nothing but its IN LINE! verdict holds the bottom of the square:
+        // with captions or the Bottom Text there too, the verdict and the bar could leave no corner, and the badge would fall back
+        // over their words (it keeps its old place then)
+        if (isPendulum && !Number.isFinite(hud.bottom) && !p.bottomText) notePendulumBar(hud, engine.getPendulumView(), liveWorld);
         if (pfView && pfLayer.labelRect.w > 0) hud.block(pfLayer.labelRect.x, pfLayer.labelRect.y, pfLayer.labelRect.w, pfLayer.labelRect.h); // --- perfect-fit --- (the words under the box or the well)
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
@@ -4124,6 +4173,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         paintBackground: (c, width, height, crop) => {
           bgPainter().paintExport(c, width, height, crop, backgroundLook());
           if (engine.isFightLeagueMode()) flLayer.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
+          if (engine.isBeatMachineMode()) machineLayer.paintExportBackdrop(c, width, height); // --- stage-fill --- (round two, B8) Beat Machines' stage in the bars
         },
         ready: () => {
           const pics = picturesRef.current;

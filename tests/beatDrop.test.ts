@@ -79,7 +79,10 @@ import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { playSoundEvent } from "@/lib/recording/fastRender";
-import { BeatDropLayer } from "@/components/simulator/beatDropRenderer";
+import { BD_BANNER_EDGE, BD_FLASH, BD_HUE_STEPS, BD_PHRASE_BEATS, BD_PUNCH_SEC, BD_PUNCH_ZOOM, BD_WASH_PEAK, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, barOf, hueStepOf, phraseLandingOf } from "@/components/simulator/beatDropRenderer";
+import { END_BANNER_IN_MS, layoutEndBanner } from "@/components/simulator/endBanner"; // --- end-banner --- (round two, B8)
+import { END_BANNER_HOLD_MS } from "@/lib/endHold";
+import { fakeCanvas } from "./fakeCanvas";
 import type { BeatGrid } from "@/lib/simulation/beatClock";
 import { fakeGraph } from "./fakeAudio";
 import { serializeMarkers } from "@/lib/simulation/beatSource"; // --- video-beats ---
@@ -926,5 +929,238 @@ describe("the beat source (video-beats): hand-placed markers", () => {
     }
     // Fewer than two markers is no grid: the BPM again.
     expect(markerBeatInputOf(settingsWith({ beatSource: "manual", beatMarkers: "250" }))).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ the build and ON BEAT!'s place (round two, B8) */
+
+describe("the build: a hue a bar, a flash and a punch a phrase (beat-build)", () => {
+  const opts = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [] as string[], ballColor: "#ffffff" };
+  type Logged = CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+
+  it("steps the backdrop's hue every bar and comes round after BD_HUE_STEPS bars", () => {
+    expect([barOf([0, 3, 4, 9], 0), barOf([0, 3, 4, 9], 1), barOf([0, 3, 4, 9], 2), barOf([0, 3, 4, 9], 3), barOf([0, 3, 4, 9], -1)]).toEqual([0, 0, 1, 2, 0]);
+    expect([hueStepOf(0), hueStepOf(1), hueStepOf(BD_HUE_STEPS), hueStepOf(-1)]).toEqual([0, 1, 0, BD_HUE_STEPS - 1]);
+    const engine = engineFor({}, 6);
+    const view = engine.getBeatDropView();
+    const plan = view.plan;
+    // the beat lines' colour on a landing of bar 1 and one of bar 2
+    const lines = (k: number) => {
+      const ctx = fakeCanvas(800, 600).getContext("2d") as unknown as Logged;
+      const strokes: unknown[] = [];
+      const stroke = ctx.stroke.bind(ctx);
+      ctx.stroke = () => {
+        strokes.push(ctx.strokeStyle);
+        stroke();
+      };
+      const layer = new BeatDropLayer();
+      layer.beginFrame(view, 1000 * plan.t[k], 0);
+      layer.drawBackdrop(ctx, view, 800, 600);
+      return strokes[0];
+    };
+    const inBar = (bar: number) => {
+      for (let k = 0; k < plan.count; k++) if (barOf(plan.beatIndex, k) === bar) return k;
+      return -1;
+    };
+    expect(lines(inBar(1))).not.toBe(lines(inBar(2)));
+    expect(lines(inBar(1))).toBe(lines(inBar(1 + BD_HUE_STEPS)));
+  });
+
+  it("flashes and punches in on the landing that opens each phrase after the first, and nowhere else", () => {
+    const engine = engineFor({}, 6);
+    const view = engine.getBeatDropView();
+    const plan = view.plan;
+    const firstPhrase = Math.floor(plan.beatIndex[0] / BD_PHRASE_BEATS);
+    let opener = -1;
+    for (let k = 1; k < plan.count && opener < 0; k++) if (Math.floor(plan.beatIndex[k] / BD_PHRASE_BEATS) > firstPhrase) opener = k;
+    expect(opener).toBeGreaterThan(0);
+    expect(phraseLandingOf(plan.beatIndex, opener)).toBe(opener);
+    expect(phraseLandingOf(plan.beatIndex, opener + 1)).toBe(opener);
+    expect(phraseLandingOf(plan.beatIndex, opener - 1)).toBe(-1);
+    // run past the landing so the clip counts it (the hold's silent landings after the clip's last never flash)
+    for (let i = 0; i < Math.ceil(60 * plan.t[opener]) + 2; i++) engine.update(STEP, 0);
+    const layer = new BeatDropLayer();
+    const frame = (t: number) => {
+      const ctx = fakeCanvas(800, 600).getContext("2d") as unknown as Logged;
+      const alphas: number[] = [];
+      // (B-g4 review) the flash is a white burst: a radial gradient made in the frame, its light the fill's alpha
+      const bursts = new Set<unknown>();
+      const createRadialGradient = ctx.createRadialGradient.bind(ctx);
+      ctx.createRadialGradient = (x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => {
+        const g = createRadialGradient(x0, y0, r0, x1, y1, r1);
+        bursts.add(g);
+        return g;
+      };
+      const fillRect = ctx.fillRect.bind(ctx);
+      ctx.fillRect = (x: number, y: number, w: number, h: number) => {
+        alphas.push(ctx.fillStyle === "#ffffff" || bursts.has(ctx.fillStyle) ? ctx.globalAlpha : -1);
+        fillRect(x, y, w, h);
+      };
+      layer.beginFrame(view, 1000 * t, 0);
+      ctx.save();
+      layer.applyCamera(ctx, view, null);
+      ctx.restore();
+      layer.drawOverlay(ctx, view, DEFAULT_BEAT_DROP_LABELS);
+      return { zoom: layer.zoom(), scales: ctx.calls.filter((c) => c.name === "scale").map((c) => c.args), flash: alphas[0] ?? -1 };
+    };
+    const on = frame(plan.t[opener]);
+    expect(on.zoom).toBeCloseTo(1 + BD_PUNCH_ZOOM, 12);
+    expect(on.scales).toEqual([[on.zoom, on.zoom]]);
+    expect(on.flash).toBeCloseTo(BD_FLASH, 12);
+    const after = frame(plan.t[opener] + BD_PUNCH_SEC);
+    expect([after.zoom, after.scales.length, after.flash]).toEqual([1, 0, -1]);
+    const before = frame(plan.t[opener - 1]);
+    expect([before.zoom, before.scales.length, before.flash]).toEqual([1, 0, -1]);
+  });
+
+  // --- end-banner --- (round two, B8) ON BEAT! hid the ball in 3 of 10 frames of the hold in the middle of the square
+  it("puts ON BEAT! over the top of the square, clear of the ball in every frame of its window, on twelve seeds in a laptop's and a phone's world", () => {
+    let onTop = 0;
+    for (const world of [{ width: 800, height: 450 }, { width: 1080, height: 1920 }]) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const engine = engineFor({}, seed, { ...config, ...world });
+        const layer = new BeatDropLayer();
+        const view = engine.getBeatDropView();
+        const ctx = fakeCanvas(world.width, world.height).getContext("2d") as unknown as Logged;
+        let at: number | undefined;
+        let plate = { top: 0, bottom: 0 };
+        let frames = 0;
+        for (let i = 0; i < 60 * 40; i++) {
+          engine.update(STEP, 0);
+          const t = engine.getElapsedMs();
+          if (view.finished && t > view.finishedMs + END_BANNER_HOLD_MS) break;
+          layer.beginFrame(view, t, 0);
+          const ball = layer.frameBalls(engine.getBalls(), view, opts)[0];
+          if (!layer.finale(view)) continue;
+          const f = view.field;
+          const S = f.size;
+          const sub = DEFAULT_BEAT_DROP_LABELS.doneSub(view.landed, view.maxErrorMs);
+          const h = layoutEndBanner(ctx, { title: DEFAULT_BEAT_DROP_LABELS.done, sub, color: "#a3e635" }, S).height;
+          const here = layer.bannerAt(view, h);
+          expect(here).toBeDefined();
+          if (at === undefined) {
+            at = here!;
+            plate = { top: f.top + at * S - h / 2, bottom: f.top + at * S + h / 2 };
+            expect(plate.top).toBeCloseTo(f.top + BD_BANNER_EDGE * S, 9);
+            expect(plate.bottom).toBeLessThan(f.top + 0.25 * S);
+            if (layer.bannerOnTop) onTop++;
+          }
+          expect(here).toBe(at);
+          // the ball as drawn (under the camera and the phrase's punch about the focus) stays under the plate, a gap between them
+          const z = layer.zoom();
+          const y = f.originY + (ball.y - view.camY * S - f.originY) * z;
+          const r = ball.radius * z;
+          expect(y - r).toBeGreaterThanOrEqual(plate.bottom + 0.02 * S);
+          frames++;
+        }
+        expect(frames).toBeGreaterThan(60);
+      }
+    }
+    expect(onTop).toBe(24);
+  });
+
+  it("fades the title block out as the plate comes in over the top of the square", () => {
+    const engine = engineFor({}, 2, { ...config, width: 800, height: 450 });
+    const view = engine.getBeatDropView();
+    const layer = new BeatDropLayer();
+    while (!layer.finale(view)) {
+      engine.update(STEP, 0);
+      layer.beginFrame(view, engine.getElapsedMs(), 0);
+    }
+    const texts = (t: number) => {
+      const ctx = fakeCanvas(800, 450).getContext("2d") as unknown as Logged;
+      layer.beginFrame(view, t, 0);
+      layer.drawOverlay(ctx, view, DEFAULT_BEAT_DROP_LABELS);
+      return ctx.calls.filter((c) => c.name === "fillText").length;
+    };
+    expect(layer.bannerAt(view, 0.21 * view.field.size)).toBeLessThan(0.3);
+    expect(layer.bannerOnTop).toBe(true);
+    expect(texts(view.lastLandingMs + 0.5 * END_BANNER_IN_MS)).toBe(3);
+    expect(texts(view.lastLandingMs + END_BANNER_IN_MS + 1)).toBe(0);
+  });
+});
+
+// --- beat-build --- --- end-banner --- (B-g4 review) the flash and the wash fade out inside the square; ON BEAT! on a phone
+describe("the build and ON BEAT! inside the square, live on a phone too (B-g4 review)", () => {
+  const opts = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [] as string[], ballColor: "#ffffff" };
+  type Logged = CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+
+  it("flashes a burst about the landing that ends at the square's sides and foot, and a wash out to nothing at the foot", () => {
+    for (const world of [{ width: 1080, height: 1080 }, { width: 800, height: 450 }, { width: 1080, height: 1920 }]) {
+      const engine = engineFor({}, 6, { ...config, ...world });
+      const view = engine.getBeatDropView();
+      const plan = view.plan;
+      const firstPhrase = Math.floor(plan.beatIndex[0] / BD_PHRASE_BEATS);
+      let opener = -1;
+      for (let k = 1; k < plan.count && opener < 0; k++) if (Math.floor(plan.beatIndex[k] / BD_PHRASE_BEATS) > firstPhrase) opener = k;
+      for (let i = 0; i < Math.ceil(60 * plan.t[opener]) + 2; i++) engine.update(STEP, 0);
+      const layer = new BeatDropLayer();
+      layer.beginFrame(view, 1000 * plan.t[opener], 0);
+      const ctx = fakeCanvas(world.width, world.height).getContext("2d") as unknown as Logged;
+      layer.drawOverlay(ctx, view, DEFAULT_BEAT_DROP_LABELS);
+      const f = view.field;
+      const S = f.size;
+      // the burst: centred on the landing, out to nothing at a radius that reaches the square's sides and its foot, never past them
+      const radial = ctx.calls.find((c) => c.name === "createRadialGradient")!;
+      expect(radial).toBeDefined();
+      const [x0, y0, r0, x1, y1, r] = radial.args as number[];
+      expect([x0, y0, r0, x1, y1]).toEqual([f.cx, f.originY, 0, f.cx, f.originY]);
+      expect(r).toBeGreaterThan(0.3 * S);
+      expect(f.cx - r).toBeGreaterThanOrEqual(f.cx - S / 2 - 1e-9);
+      expect(f.cx + r).toBeLessThanOrEqual(f.cx + S / 2 + 1e-9);
+      expect(f.originY + r).toBeLessThanOrEqual(f.top + S + 1e-9);
+      expect(f.originY - r).toBeGreaterThanOrEqual(f.top - 1e-9);
+      const fills = ctx.calls.filter((c) => c.name === "fillRect");
+      expect(fills[0].args).toEqual([f.cx - r, f.originY - r, 2 * r, 2 * r]);
+      expect(fills.some((c) => c.args[0] === 0 && c.args[1] === 0)).toBe(false);
+      // the wash: its last stop is transparent at the foot of the frame, its brightest at BD_WASH_PEAK
+      const stops: [number, string][] = [];
+      const bctx = fakeCanvas(world.width, world.height).getContext("2d") as unknown as Logged;
+      bctx.createLinearGradient = (x0: number, y0: number, x1: number, y1: number) => {
+        bctx.calls.push({ name: "createLinearGradient", args: [x0, y0, x1, y1] });
+        return { addColorStop: (o: number, c: string) => void stops.push([o, c]) } as unknown as CanvasGradient;
+      };
+      layer.drawBackdrop(bctx, view, world.width, world.height);
+      const washes = bctx.calls.filter((c) => c.name === "createLinearGradient");
+      expect(washes.length).toBe(2);
+      expect(washes[1].args[3]).toBe(world.height);
+      const washStops = stops.slice(3);
+      expect(washStops[washStops.length - 1]).toEqual([1, "rgba(0, 0, 0, 0)"]);
+      expect(0.35 + 0.65 * washStops[1][0]).toBeCloseTo(BD_WASH_PEAK, 12);
+      expect(washStops[1][1]).not.toContain(", 0)");
+    }
+  });
+
+  it("keeps ON BEAT! clear of the ball on a phone's square stage with the page's 52 px inset, as Canvas.tsx draws it live", () => {
+    for (const world of [{ width: 364, height: 364 }, { width: 390, height: 390 }]) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const engine = engineFor({}, seed, { ...config, ...world });
+        const layer = new BeatDropLayer();
+        const view = engine.getBeatDropView();
+        let frames = 0;
+        for (let i = 0; i < 60 * 40; i++) {
+          engine.update(STEP, 0);
+          const t = engine.getElapsedMs();
+          if (view.finished && t > view.finishedMs + END_BANNER_HOLD_MS) break;
+          layer.beginFrame(view, t, 0);
+          const ball = layer.frameBalls(engine.getBalls(), view, opts)[0];
+          if (!layer.finale(view)) continue;
+          const ctx = fakeCanvas(world.width, world.height).getContext("2d") as unknown as Logged;
+          layer.drawOverlay(ctx, view, DEFAULT_BEAT_DROP_LABELS, 52); // (the live page's inset on a square stage: Canvas.tsx)
+          const f = view.field;
+          const S = f.size;
+          const sub = DEFAULT_BEAT_DROP_LABELS.doneSub(view.landed, view.maxErrorMs);
+          const h = layoutEndBanner(ctx, { title: DEFAULT_BEAT_DROP_LABELS.done, sub, color: "#a3e635" }, S).height;
+          const at = layer.bannerAt(view, h)!;
+          const bottom = f.top + at * S + h / 2;
+          expect(f.top + at * S - h / 2).toBeCloseTo(f.top + BD_BANNER_EDGE * S, 9);
+          const z = layer.zoom();
+          const y = f.originY + (ball.y - view.camY * S - f.originY) * z;
+          expect(y - ball.radius * z).toBeGreaterThanOrEqual(bottom + 0.02 * S);
+          frames++;
+        }
+        expect(frames).toBeGreaterThan(60);
+      }
+    }
   });
 });

@@ -239,7 +239,8 @@ export class TeamLayer {
     this.fight = fight;
     // --- end fight-league ---
     // --- land-claim --- Land Claim plays the roster too: one team per competitor (its first six), its palette beyond the roster;
-    // its HUD takes the scoreboard's place and its land fills the blocks column (its winner banner is this layer's)
+    // its HUD takes the scoreboard's place and its land fills the blocks column (--- verdict-plate --- round two, B6: its winner is named
+    // on the mode's own plate, so the canvas leaves this layer's banner out: `modeVerdict`)
     const landClaim = !battle && !territory && !maze && next && next.roster.length > 0 && engine.isLandClaimMode() ? engine.getLandClaimView() : null;
     if (landClaim && next) next = this.landClaimTeams(next, Math.min(landClaim.teams, MAX_TEAMS), landClaim.settings.hud);
     this.landClaim = landClaim;
@@ -473,9 +474,11 @@ export class TeamLayer {
    * banner and the confetti (0 while paused); `inset` moves the scoreboard below the page's overlay buttons;
    * `modeBanner` (the mode shows its own banner in the middle) moves the winner banner lower; `holdBanner`
    * (the cinematic camera's escape replay is on) keeps the banner and its confetti back – the result is still
-   * frozen when the run ends – until the replay is over.
+   * frozen when the run ends – until the replay is over. --- verdict-plate --- (round two, B6) `modeVerdict` (the mode names the
+   * winner on its own plate: Land Claim) leaves the banner and its confetti out for good; the result stays, for the scoreboard and
+   * the winner's name the canvas mirrors (data-team-winner).
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, engine: PhysicsEngine, view: { width: number; height: number; dtMs: number; inset: number; modeBanner: boolean; holdBanner?: boolean }) {
+  drawOverlay(ctx: CanvasRenderingContext2D, engine: PhysicsEngine, view: { width: number; height: number; dtMs: number; inset: number; modeBanner: boolean; holdBanner?: boolean; modeVerdict?: boolean }) {
     this.scoreboardBottom = 0;
     if (!this.active) return;
     const o = this.options!;
@@ -514,6 +517,7 @@ export class TeamLayer {
       this.confettiPending = false;
     }
     this.bannerHeld = !!view.holdBanner;
+    if (view.modeVerdict) this.confettiPending = false; // --- verdict-plate --- (the mode's own verdict throws its confetti)
     if (this.confettiPending && !this.bannerHeld) {
       this.confettiPending = false;
       this.spawnConfetti(sx, sy, side, bannerY);
@@ -523,7 +527,7 @@ export class TeamLayer {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     if (o.showScoreboard && this.count > 0) this.drawScoreboard(ctx, stats, sx, sy + view.inset, side);
-    if (this.result && this.result.winner >= 0 && !this.bannerHeld) {
+    if (this.result && this.result.winner >= 0 && !this.bannerHeld && !view.modeVerdict) {
       this.bannerMs += view.dtMs;
       this.drawBanner(ctx, sx + side / 2, bannerY, side);
     }

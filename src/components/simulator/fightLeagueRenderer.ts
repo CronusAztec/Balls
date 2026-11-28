@@ -31,6 +31,7 @@ import {
   flShakeStrength,
   flNameColor,
   type FlHudLayout,
+  type FlRect, // --- fl-card-badge ---
 } from "@/lib/physics/modes/fightLeagueFx";
 import { FL_DIVISION_LABELS, type FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
 import type { Ball } from "@/lib/physics/types";
@@ -189,6 +190,15 @@ export class FightLeagueLayer {
   weaponsDrawn = 0;
   /** Where the ability boxes started last frame (screen y; Infinity without them): the bottom captions keep above it. */
   boxesTop = Infinity;
+  /**
+   * --- fl-card-badge --- (round two, B7b) What the watermark badge keeps off at the end (screen px, the last frame's): the end card
+   * over the arena – the verdict's (the winner's, DRAW, DOUBLE KO) or a bracket's champion – (`card`, w 0 without one), where
+   * the ability boxes or the noir stats block end (`boxesBottom`, Infinity without them: the strip under them is kept a badge's
+   * height and inset tall, `flHudLayout()`) and the fan-made line in that strip (`fanLine`, w 0 when not drawn).
+   */
+  readonly card: FlRect = { x: 0, y: 0, w: 0, h: 0 };
+  boxesBottom = Infinity;
+  readonly fanLine: FlRect = { x: 0, y: 0, w: 0, h: 0 };
   /**
    * --- fl-overhaul --- (fl-overhaul fix) The last frame's boxes: their rows, and their ability names as drawn – the smallest
    * size (a share of the square's side), the narrowest horizontal squeeze and how many were ellipsised.
@@ -644,6 +654,9 @@ export class FightLeagueLayer {
     this.vsShown = false;
     this.bannerShown = false;
     this.boxesTop = Infinity;
+    this.boxesBottom = Infinity; // --- fl-card-badge ---
+    this.card.w = 0;
+    this.fanLine.w = 0;
     this.boxRows = 0;
     this.boxNameMin = 0;
     this.bandNameMin = 0; // --- low-findings-2 ---
@@ -670,6 +683,7 @@ export class FightLeagueLayer {
       // folded in: they count as the boxes) below it
       hudBottom = this.noir.drawTop(ctx, fr, view, L, lay, ox, oy + frame.inset, this.weapons, this.shows);
       this.boxesTop = this.noir.drawBlock(ctx, fr, view, L, lay, ox, oy);
+      if (this.boxesTop < Infinity) this.boxesBottom = oy + lay.boxesBottom; // --- fl-card-badge --- (the block's letters end by it, as the boxes do)
       this.namesDrawn = this.noir.namesDrawn;
       this.boxesDrawn = this.noir.abilitiesDrawn;
       this.boxRows = this.noir.abilitiesDrawn > 0 ? 1 : 0;
@@ -682,6 +696,7 @@ export class FightLeagueLayer {
     } else if (view.settings.hud) {
       hudBottom = this.hud.drawBand(ctx, fr, view, L, lay, ox, oy + frame.inset, this.bodies, this.shows);
       this.boxesTop = this.hud.drawBoxes(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons);
+      if (this.boxesTop < Infinity) this.boxesBottom = oy + lay.boxesBottom; // --- fl-card-badge ---
       this.namesDrawn = this.hud.namesDrawn;
       this.boxesDrawn = this.hud.boxesDrawn;
       this.boxRows = this.hud.boxesDrawn > 0 ? lay.boxRows : 0;
@@ -705,9 +720,24 @@ export class FightLeagueLayer {
         this.cards.shown.add("champion");
       } else this.cards.drawVerdict(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, kind, this.shows);
     } else if (view.matchOver && !view.finished && show.phase === "card") this.shows.drawInterlude(ctx, fr, view, L, lay, ox, oy);
+    // --- fl-card-badge --- (round two, B7b) the end card drawn this frame covers the whole arena (cards.ts `drawVerdict`, shows.ts
+    // `drawChampion`): its rect for the watermark's HUD report
+    if (this.cards.bannerShown) {
+      this.card.x = ox + lay.arena.x;
+      this.card.y = oy + lay.arena.y;
+      this.card.w = lay.arena.w;
+      this.card.h = lay.arena.h;
+    }
     // --- legal-audit --- the permanent fan-made badge: small and muted, centred in the strip under the ability boxes (the
     // watermark badge keeps to a corner), HUD or not, in the recording too
-    fr.text.draw(ctx, L.fanMade, ox + side / 2, oy + side * (1 - BADGE_INSET - BADGE_HEIGHT / 2), 0.016 * side, { role: "ui", color: fr.pal.hud.source, stroke: null, weight: 600 }, "center", 0.5 * side, 0.85);
+    const fanFs = 0.016 * side;
+    const fanY = oy + side * (1 - BADGE_INSET - BADGE_HEIGHT / 2);
+    const fanW = fr.text.draw(ctx, L.fanMade, ox + side / 2, fanY, fanFs, { role: "ui", color: fr.pal.hud.source, stroke: null, weight: 600 }, "center", 0.5 * side, 0.85);
+    // --- fl-card-badge --- (and the line as drawn: the badge keeps off it when the end card sends it into the strip)
+    this.fanLine.x = ox + side / 2 - fanW / 2;
+    this.fanLine.y = fanY - 0.6 * fanFs;
+    this.fanLine.w = fanW;
+    this.fanLine.h = 1.2 * fanFs;
     ctx.restore();
     this.vsShown = this.cards.vsShown;
     this.bannerShown = this.cards.bannerShown;

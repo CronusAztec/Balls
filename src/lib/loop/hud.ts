@@ -1,6 +1,7 @@
 import type { ModeId } from "@/lib/physics/types";
 import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
 import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter's plural forms)
+import { waveTankTitleAlpha, type WaveTankTitleView } from "@/lib/physics/waveTank"; // --- wave-chapters --- (round two, B8)
 
 /*
  * --- loop-foundation --- The loop HUD, in the style of the loop clips: a bold lowercase title at about 16 % of the frame's
@@ -43,6 +44,8 @@ export interface LoopHudFrame {
   tabular?: boolean;
   /** --- low-findings-2 --- The spec's `topBand`: the title block stacks under the mode's own band. */
   topBand?: number;
+  /** --- wave-chapters --- (round two, B8) The title's light (0–1; missing: full): Wave Tank's title dims away from its chapter. */
+  titleAlpha?: number;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -71,6 +74,11 @@ export interface LoopHudSpec {
    * "out in 11.2 s" once out), from these two templates (`{ring}`, `{time}`) and the run's ring timer (`LoopHudRingTime`).
    */
   ringTimer?: { ring: string; out: string };
+  /**
+   * --- wave-chapters --- (B-g4 review) The title is the visitor's own (URL `lht`), not the mode's: a chapter's light (Wave Tank's
+   * title dimmed away from the double slit) leaves it full. The page sets it with the title; missing: the mode's own title.
+   */
+  customTitle?: boolean;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -397,6 +405,14 @@ export interface LoopHudRingTime {
 }
 /** The ring time, reused every frame. */
 const RING_TIME: LoopHudRingTime = { ringSec: 0, ring: 1, rings: 0, out: false };
+// --- wave-chapters --- (round two, B8)
+/** A counter (or none) with the title's light: Wave Tank's section label while its title is dimmed (`waveTankTitleAlpha()`). */
+export interface LoopHudTitled {
+  count: number | null;
+  titleAlpha: number;
+}
+/** Wave Tank's label and title light, reused every frame. */
+const WAVE_TANK_TITLED: LoopHudTitled = { count: null, titleAlpha: 1 };
 const ringTimeFormats = new Map<string, Intl.NumberFormat>();
 /** Seconds with one decimal, in the page's style ("1.4"; "1,4" in Polish and Spanish). */
 function oneDecimal(value: number, locale?: string): string {
@@ -451,13 +467,14 @@ export function loopHudCount(engine: {
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
   getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
   getWaveTankHudCount?(): number | null; // --- wave-tank ---
+  getWaveTankView?(): WaveTankTitleView; // --- wave-chapters --- (round two, B8: the title's light)
   getBrickRebuildHudCount?(): number | null; // --- brick-rebuild ---
   getDrawingMachineHudCount?(): LoopHudCounter | null; // --- drawing-machine ---
   getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
   getLandClaimView?(): { pyramid: { shown: number } | null }; // --- land-claim-pyramid ---
   getRingEscapeView?(): { rings: number; ring: number; enteredMs: number; outMs: number } | null; // --- low-findings-2 ---
   getElapsedMs?(): number; // --- low-findings-2 ---
-}): number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | null {
+}): number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | LoopHudTitled | null {
   // --- low-findings-2 --- Classic's time in the ring (the counter of a page with Ring Escape's timer on: `LoopHudSpec.ringTimer`)
   if (engine.getCurrentModeName() === "classic" && engine.getRingEscapeView && engine.getElapsedMs) {
     const view = engine.getRingEscapeView();
@@ -515,7 +532,15 @@ export function loopHudCount(engine: {
   }
   // --- end colour-sort ---
   if (engine.getCurrentModeName() === "beatMachine") return engine.getBeatMachineHudCount?.() ?? null; // --- beat-machine --- (the notes of the loop, with the counter on)
-  if (engine.getCurrentModeName() === "waveTank") return engine.getWaveTankHudCount?.() ?? null; // --- wave-tank --- (the section's gaps, with the label on)
+  // --- wave-tank --- (the section's gaps, with the label on; --- wave-chapters --- round two, B8: with the title's light while it is dimmed)
+  if (engine.getCurrentModeName() === "waveTank") {
+    const count = engine.getWaveTankHudCount?.() ?? null;
+    const alpha = engine.getWaveTankView ? waveTankTitleAlpha(engine.getWaveTankView()) : 1;
+    if (!(alpha < 1)) return count;
+    WAVE_TANK_TITLED.count = count;
+    WAVE_TANK_TITLED.titleAlpha = alpha;
+    return WAVE_TANK_TITLED;
+  }
   if (engine.getCurrentModeName() === "brickRebuild") return engine.getBrickRebuildHudCount?.() ?? null; // --- brick-rebuild --- (the bricks standing: down to 0, back up in the rebuild)
   if (engine.getCurrentModeName() === "drawingMachine") return engine.getDrawingMachineHudCount?.() ?? null; // --- drawing-machine --- (the orbits' "year 8.0"; none for the harmonograph)
   // --- funnel-spin --- the Sound Vortex's ring release with the lap readout: the newest ring's lap ("lap 1.23 s"); none while the funnel is empty
@@ -530,7 +555,13 @@ export function loopHudCount(engine: {
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | null, locale?: string): LoopHudFrame {
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | LoopHudTitled | null, locale?: string): LoopHudFrame {
+  // --- wave-chapters --- (round two, B8) a counter with the title's light: the frame of the counter, its title at that light
+  if (count !== null && typeof count === "object" && "titleAlpha" in count) {
+    const frame = loopHudFrame(spec, count.count, locale);
+    if (!spec.customTitle) frame.titleAlpha = Math.max(0, Math.min(1, count.titleAlpha)); // (B-g4 review: a visitor's own title stays full)
+    return frame;
+  }
   // --- low-findings-2 --- Classic's time in the ring: the counter with Ring Escape's timer on, none without it
   if (count !== null && typeof count === "object" && "ringSec" in count) {
     const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: spec.ringTimer ? ringTimeText(spec.ringTimer, count, locale ?? spec.locale) : hudCounterText(spec.counter, null), light: spec.light };
@@ -636,7 +667,9 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
   if (frame.title && layout.titleY >= 0) {
     // --- low-findings --- (−1: the live preview's margin has no room for it)
     ctx.fillStyle = frame.light ? LOOP_HUD_TITLE_DARK : frame.serif ? LOOP_HUD_CREAM /* --- drawing-machine --- */ : "#ffffff";
+    if (frame.titleAlpha !== undefined) ctx.globalAlpha = frame.titleAlpha; // --- wave-chapters --- (round two, B8)
     fitLine(ctx, frame.title, cx, layout.titleY, layout.titleSize, frame.serif ? "700" : "800", layout.maxWidth, frame.serif ? LOOP_HUD_SERIF : undefined);
+    ctx.globalAlpha = 1;
   }
   if (frame.subtitle && layout.subtitleY >= 0) {
     const grey = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_GREY;
