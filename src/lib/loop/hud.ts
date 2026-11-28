@@ -74,6 +74,11 @@ export interface LoopHudSpec {
    * "out in 11.2 s" once out), from these two templates (`{ring}`, `{time}`) and the run's ring timer (`LoopHudRingTime`).
    */
   ringTimer?: { ring: string; out: string };
+  /**
+   * --- wave-chapters --- (B-g4 review) The title is the visitor's own (URL `lht`), not the mode's: a chapter's light (Wave Tank's
+   * title dimmed away from the double slit) leaves it full. The page sets it with the title; missing: the mode's own title.
+   */
+  customTitle?: boolean;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -554,7 +559,7 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   // --- wave-chapters --- (round two, B8) a counter with the title's light: the frame of the counter, its title at that light
   if (count !== null && typeof count === "object" && "titleAlpha" in count) {
     const frame = loopHudFrame(spec, count.count, locale);
-    frame.titleAlpha = Math.max(0, Math.min(1, count.titleAlpha));
+    if (!spec.customTitle) frame.titleAlpha = Math.max(0, Math.min(1, count.titleAlpha)); // (B-g4 review: a visitor's own title stays full)
     return frame;
   }
   // --- low-findings-2 --- Classic's time in the ring: the counter with Ring Escape's timer on, none without it

@@ -628,8 +628,10 @@ export class GrowMode implements GameMode {
     if (this.fill.pitch) {
       const cap = this.maxBallRadius(ctx, wallIndex);
       if (outward) ctx.addPendingSoundEvent(this.pluck(hitRadius, wallIndex, cap));
-      if (outward) this.sounded = true; // --- grow-chimes ---
-      if (wall) this.passMilestones(ctx, ball, hitRadius, cap); // --- grow-chimes ---
+      // --- grow-chimes --- only a sounding contact counts the fill (B-g4 review: a milestone passed while the ball grew on a silent
+      // overlap chimed alone in its step; it now chimes with the next bounce's pluck)
+      if (outward) this.sounded = true;
+      if (wall && outward) this.passMilestones(ctx, ball, hitRadius, cap);
       if (this.fill.onFill !== "stay" && this.allFull(ctx, wallIndex)) this.beginFill(ctx);
       return { suppressBounce: true, suppressGlow: !outward, suppressSound: true };
     }

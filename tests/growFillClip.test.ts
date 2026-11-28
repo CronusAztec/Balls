@@ -250,3 +250,30 @@ describe("--- grow-chimes --- the fill's milestones", () => {
     expect(size(draw(at).font)).toBe(Math.round(GROW_PULSE_POP * Math.max(12, 0.16 * v.ring)));
   });
 });
+
+// --- grow-chimes --- (B-g4 review) under pitch by size the ball also grows on a silent overlap (the approach law at a high rate):
+// a milestone passed there chimed alone in its step; it now chimes with the next bounce's pluck
+describe("--- grow-chimes --- a chime always shares its step with a contact's sound", () => {
+  it("chimes only in a step that plucks, on the approach law with pitch by size at a high rate, in three worlds, replayed exactly", () => {
+    let chimes = 0;
+    for (const world of [{ width: 450, height: 450 }, { width: 800, height: 450 }, { width: 390, height: 390 }]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const run = (): string[] => {
+          const engine = engineOf(seed, { growPitch: true, growRate: 10 }, world);
+          const log: string[] = [];
+          while (!engine.isSimulationFinished() && engine.getElapsedMs() < 40_000) {
+            engine.update(STEP, 0);
+            const events = engine.consumeSoundEvents();
+            const chime = events.filter((e) => e.loop === "chime");
+            if (chime.length > 0) expect(events.some((e) => e.ringVoice !== "extra")).toBe(true);
+            chimes += chime.length;
+            for (const e of chime) log.push(`${engine.getElapsedMs().toFixed(3)}:${e.frequency}`);
+          }
+          return log;
+        };
+        expect(run()).toEqual(run());
+      }
+    }
+    expect(chimes).toBeGreaterThan(0);
+  });
+});

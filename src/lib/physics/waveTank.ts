@@ -437,7 +437,10 @@ export function waveTankHudKeys(source: WtSource): { title: string; subtitle: st
 /** The loop HUD title's light away from the double slit (it stays up, dimmed: the crew is told the HUD has a title), and its fade (s). */
 export const WT_TITLE_DIM = 0.4;
 export const WT_TITLE_FADE_SEC = 0.6;
-/** What the title's light reads of a run: the source, the section in force and its gaps, the last change (s), the time (s), the chapters. */
+/**
+ * What the title's light reads of a run: the source, the section in force and its gaps, the last change (s), the time (s), the
+ * chapters (with where each starts on the loop's timeline and the frames of the first that close the loop: `WaveSchedule`).
+ */
 export interface WaveTankTitleView {
   source: string;
   section: number;
@@ -445,19 +448,23 @@ export interface WaveTankTitleView {
   changeSec: number;
   impacts: number;
   timeSec: number;
-  schedule: { sections: readonly { gaps: number }[] };
+  schedule: { sections: readonly { gaps: number }[]; starts: readonly number[]; wrapFrames: number };
 }
 /**
  * How bright the loop HUD's title is drawn (0–1). With a barrier the title names the double slit ("the double slit, in water"),
- * so in a run of chapters that has one with 2 gaps it is full in that chapter and dims to WT_TITLE_DIM in the others (1 gap, 7
- * gaps), fading over WT_TITLE_FADE_SEC after each change; the section label under the tank names the chapter in force. A run of
- * one section, one without a 2-gap chapter and the point sources ("ripples that cross") keep it full. Pure: the same run state
- * gives the same light live, in a recording and in the fast export.
+ * so in a run of chapters that has one with 2 gaps it is full until that chapter has played (B-g4 review: the link base's "1, 2,
+ * 7" opened dimmed, before its double slit), then full in it and dimmed to WT_TITLE_DIM in the others (1 gap, 7 gaps), fading
+ * over WT_TITLE_FADE_SEC after each change; the section label under the tank names the chapter in force. A run of one section,
+ * one without a 2-gap chapter and the point sources ("ripples that cross") keep it full. Pure: the same run state gives the same
+ * light live, in a recording and in the fast export.
  */
 export function waveTankTitleAlpha(view: WaveTankTitleView): number {
   const sections = view.schedule.sections;
   const n = sections.length;
   if (view.source === "points" || n < 2 || !sections.some((s) => s.gaps === 2)) return 1;
+  // (the run plays the timeline from the first section's `wrapFrames`: full until it is past the end of its first 2-gap chapter)
+  const first = sections.findIndex((s) => s.gaps === 2);
+  if (view.schedule.wrapFrames + Math.round(60 * view.timeSec) < (view.schedule.starts[first + 1] ?? 0)) return 1;
   const light = (gaps: number) => (gaps === 2 ? 1 : WT_TITLE_DIM);
   const to = light(view.gaps);
   // (no change yet: the run's first chapter, at its light from the first frame)

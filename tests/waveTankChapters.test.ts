@@ -318,3 +318,39 @@ describe("the climax's flash and the title through the chapters (round two, B8)"
     }
   });
 });
+
+// --- wave-chapters --- (B-g4 review) the title stays full until the double slit has played, and a visitor's own title stays full
+describe("the title before the double slit and a visitor's own title (B-g4 review)", () => {
+  const spec = { title: "the double slit, in water", subtitle: "", counter: "{count, plural, one {{count} gap} other {{count} gaps}}", light: false };
+
+  it("keeps the link base's title full through its 1-gap opening and its double slit, then dims it in the other chapters", () => {
+    const engine = wtEngine({ cols: 64 }, 1); // (the link base: 1, 2, 7)
+    const view = engine.getWaveTankView();
+    expect(view.schedule.sections.map((s) => s.gaps)).toEqual([1, 2, 7]);
+    let seenTwo = false;
+    let leftTwo = false;
+    let dimmed = 0;
+    for (let k = 0; k < 45 * 60; k++) {
+      run(engine, 1);
+      const a = waveTankTitleAlpha(view);
+      if (view.gaps === 2) seenTwo = true;
+      if (seenTwo && view.gaps !== 2) leftTwo = true;
+      if (!leftTwo) expect(a).toBe(1);
+      else if (view.timeSec - view.changeSec >= WT_TITLE_FADE_SEC) expect(a).toBe(view.gaps === 2 ? 1 : WT_TITLE_DIM);
+      if (a === WT_TITLE_DIM) dimmed++;
+    }
+    expect(seenTwo && leftTwo).toBe(true);
+    expect(dimmed).toBeGreaterThan(5 * 60);
+  });
+
+  it("leaves a visitor's own title full while the mode's own dims", () => {
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    const view = engine.getWaveTankView();
+    while (!(waveTankTitleAlpha(view) === WT_TITLE_DIM)) run(engine, 1);
+    const count = loopHudCount(engine);
+    expect(loopHudFrame(spec, count, "en").titleAlpha).toBe(WT_TITLE_DIM);
+    const own = loopHudFrame({ ...spec, title: "my waves", customTitle: true }, count, "en");
+    expect(own.titleAlpha).toBeUndefined();
+    expect(own.counter).toBe(view.gaps === 1 ? "1 gap" : `${view.gaps} gaps`);
+  });
+});

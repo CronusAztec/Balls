@@ -44,6 +44,9 @@ import { END_BANNER_IN_MS } from "./endBanner"; // --- end-banner --- (round two
  * bar (the beat lines, a wash rising from the foot of the frame and the focus glow, BD_HUE_STEP further round each bar), and the
  * landing that opens each phrase of BD_PHRASE_BEATS beats flashes the frame and punches the camera in (`punchAt()`). All of it
  * reads the plan at the frame's time, so the fast export draws the same frames.
+ * (B-g4 review) The flash is a white burst about the landing and the wash ends before the frame's foot: both fade to nothing
+ * inside the square, so a 9:16 export's bands meet the square without a hard edge (a fill of the whole square was a grey box
+ * between them on every phrase, and the wash's brightest row was the square's last).
  * --- end-banner --- (round two, B8) ON BEAT! goes over the top of the square, above the ball's path, and the title block fades
  * out under it (`bannerAt()`): in the middle it hid the ball in 3 of 10 frames of the hold. The camera keeps where the ball lands
  * at FOCUS_AT of the square, so at the default bounce the ball's highest point through the hold stays under the plate on every
@@ -126,9 +129,14 @@ export const BD_HUE_STEPS = 9;
 /** The wash rising from the foot of the frame in the bar's hue: its light (alpha) off the beat and on it. */
 export const BD_WASH = 0.2;
 export const BD_WASH_BEAT = 0.15;
-/** A phrase (beats): the landing that opens one flashes the frame (BD_FLASH, over BD_FLASH_SEC) and punches the camera in (× 1 + BD_PUNCH_ZOOM, over BD_PUNCH_SEC). */
+/** (B-g4 review) Where the wash is brightest (a share of the frame's height); under it, it fades out to nothing at the foot. */
+export const BD_WASH_PEAK = 0.9;
+/**
+ * A phrase (beats): the landing that opens one flashes (a white burst about the landing, BD_FLASH at its middle, over
+ * BD_FLASH_SEC) and punches the camera in (× 1 + BD_PUNCH_ZOOM, over BD_PUNCH_SEC).
+ */
 export const BD_PHRASE_BEATS = 16;
-export const BD_FLASH = 0.3;
+export const BD_FLASH = 0.4;
 export const BD_FLASH_SEC = 0.3;
 export const BD_PUNCH_ZOOM = 0.06;
 export const BD_PUNCH_SEC = 0.35;
@@ -225,9 +233,7 @@ export class BeatDropLayer {
   private readonly glows: (CanvasGradient | null)[] = [];
   private readonly washes: (CanvasGradient | null)[] = [];
   private washKey = "";
-  // --- end-banner --- (round two, B8) the inset of the title block, and whether ON BEAT! is up over the top of the square (the
-  // title block then fades out under it)
-  private hudInset = 0;
+  // --- end-banner --- (round two, B8) whether ON BEAT! is up over the top of the square (the title block then fades out under it)
   bannerOnTop = false;
 
   /** The frame's time: the engine's clock (ms) plus `aheadMs` of simulation time not stepped yet (the canvas' accumulator). */
@@ -316,9 +322,11 @@ export class BeatDropLayer {
     }
     let wash = this.washes[hs];
     if (!wash) {
+      // (B-g4 review) brightest at BD_WASH_PEAK, out to nothing at the foot: no hard edge where the square meets an export's band
       wash = ctx.createLinearGradient(0, 0.35 * height, 0, height);
       wash.addColorStop(0, "rgba(0, 0, 0, 0)");
-      wash.addColorStop(1, this.washColors[hs]);
+      wash.addColorStop((BD_WASH_PEAK - 0.35) / 0.65, this.washColors[hs]);
+      wash.addColorStop(1, "rgba(0, 0, 0, 0)");
       this.washes[hs] = wash;
     }
     ctx.globalAlpha = BD_WASH + BD_WASH_BEAT * this.energy;
@@ -797,13 +805,19 @@ export class BeatDropLayer {
     const left = f.cx - S / 2 + 0.035 * S;
     const top = f.top + 0.03 * S + inset;
     const fs = Math.max(11, 0.03 * S);
-    this.hudInset = inset; // --- end-banner ---
     ctx.save();
-    // --- beat-build --- the phrase's flash, over the scene and under these words
-    if (this.flash > 0.004) {
+    // --- beat-build --- the phrase's flash, over the scene and under these words: a white burst about where the ball lands,
+    // out to nothing at the square's sides and foot (B-g4 review: a fill of the whole square was a hard grey box against a 9:16
+    // export's bands)
+    if (this.flash > 0.004 && typeof ctx.createRadialGradient === "function") {
+      const r = Math.max(1, Math.min(0.5 * S, f.top + S - f.originY));
+      const burst = ctx.createRadialGradient(f.cx, f.originY, 0, f.cx, f.originY, r);
+      burst.addColorStop(0, "rgba(255, 255, 255, 1)");
+      burst.addColorStop(0.5, "rgba(255, 255, 255, 0.45)");
+      burst.addColorStop(1, "rgba(255, 255, 255, 0)");
       ctx.globalAlpha = this.flash;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, f.width, f.height);
+      ctx.fillStyle = burst;
+      ctx.fillRect(f.cx - r, f.originY - r, 2 * r, 2 * r);
     }
     // --- end-banner --- (round two, B8) ON BEAT! over the top of the square: the title block fades out as the plate comes in
     const hud = this.bannerOnTop ? Math.max(0, 1 - (1000 * this.t - view.lastLandingMs) / END_BANNER_IN_MS) : 1;
@@ -847,14 +861,15 @@ export class BeatDropLayer {
   // --- end-banner --- (round two, B8)
   /**
    * Where ON BEAT!'s plate, `height` px tall, has its centre (a share of the square from its top; Canvas.tsx's bigBanner): over
-   * the top of the square, BD_BANNER_EDGE under its edge (and under the page's buttons' inset live), above the ball's path. The
-   * title block fades out under it from then on (drawOverlay()).
+   * the top of the square, BD_BANNER_EDGE under its edge, above the ball's path. The title block fades out under it from then on
+   * (drawOverlay()). (B-g4 review) Live, too: the page's buttons' inset is the left-aligned title block's, and the centred plate
+   * under it covered the ball at the top of its bounce on a phone's square stage.
    */
   bannerAt(view: BeatDropView, height: number): number | undefined {
     const S = view.field.size;
     if (!(S > 0) || !(height > 0)) return undefined;
     this.bannerOnTop = true;
-    return BD_BANNER_EDGE + this.hudInset / S + height / (2 * S);
+    return BD_BANNER_EDGE + height / (2 * S);
   }
   // --- end end-banner ---
 
