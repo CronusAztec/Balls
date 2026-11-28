@@ -37,9 +37,10 @@ describe("the start look", () => {
     expect(clipPacingDefaults("grow")).toEqual({});
     const card = GALLERY.find((p) => p.id === "fill-the-ring")!;
     expect(settingsFromSearchParams(new URLSearchParams(card.query))).toMatchObject({ mode: "grow", ...START });
-    // the gallery's Matrix Growth card still plays the classic Grow
+    // (--- gallery-in-clip --- round two A6) the gallery's Matrix Growth card plays the multiply law to the fill too, at the mode's
+    // own 11 % a bounce from 5 %: before, the classic Grow it played never ended
     const matrix = settingsFromSearchParams(new URLSearchParams(GALLERY.find((p) => p.id === "matrix-grow")!.query));
-    expect([matrix.growLaw, matrix.growOnFill]).toEqual(["approach", "stay"]);
+    expect([matrix.growLaw, matrix.growOnFill]).toEqual(["multiply", "finish"]);
   });
 
   it("fills the ring inside the clip on every seed, in both worlds, with a pluck a bounce and no buzz", () => {

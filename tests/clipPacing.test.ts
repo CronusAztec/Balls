@@ -188,8 +188,9 @@ describe("what was measured on the old defaults keeps them", () => {
   });
 
   it("keeps the gallery's Pendulum Wave preset and the daily Countdown deals on the runs they were picked for", () => {
+    // (--- gallery-in-clip --- round two A6: the preset was picked for the page's 24 s cycle, written out; 1.17.0's link keeps 60 s)
     const pendulum = settingsFromSearchParams(new URLSearchParams(GALLERY.find((p) => p.id === "galaxy-pendulum")!.query));
-    expect([pendulum.pwCycleSeconds, pendulum.pwBaseOscillations]).toEqual([60, 51]);
+    expect([pendulum.pwCycleSeconds, pendulum.pwBaseOscillations]).toEqual([24, 20]);
     const deal = DAILY_POOL.find((entry) => entry.mode === "target")!;
     const daily = settingsFromSearchParams(new URLSearchParams(`mode=target&${deal.look}`));
     expect([daily.targetCount, daily.ballSpeed, daily.showGlow]).toEqual([6, 400, true]);
@@ -373,12 +374,13 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     expect(studio.put(startSettings("maze"))).toBe(15); // another mode (a batch job, a share code) starts on its own
     expect(studio.put(onLook("maze", "card"))).toBe(10.5);
     expect(studio.put(startSettings("runner"))).toBe(22); // the page's own settings back: its own target
-    // (A-g1 review) a typed target equal to a look's own: the bare studio (Classic's start look, 18), 30 typed, Neon Escape (30)
-    // and Plain again keep the 30 the visitor typed (before, Plain took it back to 18)
+    // (A-g1 review) a typed target equal to a look's own: the bare studio (Classic's start look, 18), 36 typed, the Challenge look
+    // (36) and Plain again keep the 36 the visitor typed (before, Plain took it back to 18) (--- gallery-in-clip --- round two A6:
+    // Neon Escape, the look of 30 this walked through, ends in its clip now, with a target of its own)
     const classic = page(startSettings("classic"));
-    classic.type(30);
-    expect(classic.put(onLook("classic", "neon-escape"))).toBe(30);
-    expect(classic.put(startSettings("classic"))).toBe(30);
+    classic.type(36);
+    expect(classic.put(onLook("classic", "daily"))).toBe(36);
+    expect(classic.put(startSettings("classic"))).toBe(36);
   });
 
   it("looks up an exact look first, then the start look, then the pace, then the page's 30", () => {
@@ -392,7 +394,7 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 0.6 })).toBe(32);
     expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 20, runnerDensity: 0.6 })).toBe(30);
     // (A-g2 review) a bare link plays the link base, and gets the target of the look whose run that is: Race's and Beat Runner's
-    // Challenge looks (1.17.0's deals), Pendulum Wave's galaxy-pendulum (60 s); a race of its own keeps the page's 30
+    // Challenge looks (1.17.0's deals), Pendulum Wave's 60 s cycle (1.17.0's galaxy-pendulum); a race of its own keeps the page's 30
     expect(["race", "runner", "pendulum"].map((mode) => clipPacingFindSec(settingsFromSearchParams(new URLSearchParams(`mode=${mode}`))))).toEqual([27.5, 32, 60]);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=race&rcn=10")))).toBe(30);
     // the start look before the page's 30, with every field of its run; its sounds, effects and glow are its look
@@ -413,6 +415,7 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "classic/start": 18, // before 30 (1 run of 200 within ± 0.5 s; now 27)
     "classic/card": 18, // (0; 26)
     "classic/daily": 36, // (3; 13)
+    "classic/neon-escape": 21, // --- gallery-in-clip --- (round two A6: before 30, its runs never ended) (7; 29)
     "accumulation/start": 14.5, // (4; 12)
     "multiply/start": 19, // (0; 82)
     "grow/start": 19.5, // (0; 114)
@@ -427,7 +430,7 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "conveyor/bowl-overflow": 25.5, // (0; 109)
     "ctf/start": 20, // (8; 12)
     "target/daily": 20, // - (20)
-    "pendulum/galaxy-pendulum": 60, // IN LINE! at 60.0 s (before 24: "always 60.0 s")
+    "pendulum/galaxy-pendulum": 24, // --- gallery-in-clip --- (round two A6) the page's 24 s cycle: IN LINE! at 24.0 s (its 1.17.0 run: 60)
     "polyrhythm/polygon-polyrhythm": 12, // in phase at 12.0 s (before 24)
     "spiralGlass/card": 19.5, // (0; 182)
     "spiralGlass/sunset-spiral": 19.5, // (0; 182)
@@ -435,11 +438,11 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "runner/card": 20.5, // (22; 104)
     "runner/retro-runner": 25.5, // (0; 86)
     "runner/daily": 32, // (20; 44) A-g2 review: 1.17.0's deal on the link base
-    "vortex/neon-vortex": 41.5, // (0; 98)
+    "vortex/neon-vortex": 22.5, // --- gallery-in-clip --- (round two A6) the ring release, 22.5 s on every seed (its 1.17.0 run: 41.5)
     "vortex/daily": 30, // (0; 82)
     "bullseye/card": 25, // (round two A5: the card plays the start look's run, the pace's target; its earlier run had 10 of its own)
     "bullseye/candy-darts": 10.5, // (0; 94)
-    "race/grand-prix": 30, // (0; 30)
+    "race/grand-prix": 24, // --- gallery-in-clip --- (round two A6) ten racers on the pace's 6 screens (39; 44) (its 1.17.0 run: 30)
     "race/daily": 27.5, // (20; 40) A-g2 review: 1.17.0's deal on the link base
     "journey/card": 22.5, // (32; 42)
     "journey/pastel-commute": 22.5, // (32; 42)
@@ -447,10 +450,13 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "maze/red-maze-race": 30, // (6; 10)
     "paddle/sunset-keep-up": 19.5, // (8; 12)
     "paddle/daily": 19.5, // (2; 12) A-g2 review: 1.17.0's deal, Sunset Keep-Up's run
-    "paint/rainbow-paint": 67.5, // (0; 20)
-    "portal/aurora-portals": 30, // (0; 10)
+    "paint/rainbow-paint": 24, // --- gallery-in-clip --- (round two A6) Guide to the Gaps (10; 34) (its 1.17.0 run: 67.5)
+    "portal/aurora-portals": 16.5, // --- gallery-in-clip --- (round two A6) the start look's run and target (its 1.17.0 run: 30)
     "portal/daily": 30, // (6; 4: Portal's link base, which keeps the page's 30)
-    "lines/string-art": 30, // the finder reads it as endless
+    "lines/string-art": 21, // --- gallery-in-clip --- (round two A6) 64 strings (0; 112) (its 1.17.0 run, endless: 30)
+    "grow/matrix-grow": 14, // --- gallery-in-clip --- (round two A6) the multiply law to the fill (0; 92)
+    "collide/squishy-orbs": 21.5, // --- gallery-in-clip --- (round two A6) the pour at 14 s (0; 80 of 80)
+    "box/countdown-squares": 16, // --- gallery-in-clip --- (round two A6) ball speed 575 (0; 38)
   };
 
   it("gives each look its own target", () => {
@@ -460,10 +466,10 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     }
   });
 
-  // seeds 1–12 of the laptop world (1–6 for the three costliest runs, 1–20 for the two looks with the fewest runs on a target),
+  // seeds 1–12 of the laptop world (1–6 for the four costliest runs, 1–20 for the two looks with the fewest runs on a target),
   // the page's own request: the target lands at least one run within ± 0.5 s, and at least as many as the page's 30 (Classic's
   // Challenge look 1 and 1 here, 13 and 3 of 200); a fixed-length run is its target
-  const SEEDS_OF: Record<string, number> = { "collide/start": 6, "conveyor/bowl-overflow": 6, "multiply/start": 6, "classic/daily": 20, "ctf/start": 20 };
+  const SEEDS_OF: Record<string, number> = { "collide/start": 6, "conveyor/bowl-overflow": 6, "multiply/start": 6, "classic/daily": 20, "ctf/start": 20, "collide/squishy-orbs": 6 /* --- gallery-in-clip --- */ };
   it("lands the runs of each look it gives a target", { timeout: 240_000 }, () => {
     const world = { width: 800, height: 450 };
     const near = (ends: number[], t: number) => ends.filter((end) => Math.abs(end - t) <= 0.5 + 1e-9).length;

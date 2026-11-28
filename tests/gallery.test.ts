@@ -7,6 +7,7 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { shelfOf } from "@/lib/siteDesign"; // --- gallery-every-mode ---
 import { parseSeed } from "@/lib/recording/batch";
 import { settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { simulate } from "@/lib/agentKit/simulate"; // --- gallery-in-clip ---
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -74,6 +75,22 @@ describe("preset gallery (src/content/gallery.ts)", () => {
       }
       expect(preset.description.pl).not.toBe(preset.description.en);
       expect(preset.description.es).not.toBe(preset.description.en);
+    }
+  });
+
+  // --- gallery-in-clip --- (round two A6) the looks whose runs went past their clip (final review R10 and site-missed-8: Paint the
+  // Circle's counter reached 100 % at 60.5 s, Neon Escape, Rainbow String Art and Matrix Growth never ended) end inside it: the
+  // pinned seed in a laptop's world (800 × 450, the world of the pictures) is over by 27 s, so the end card's 2 s fit a 30 s clip
+  it("ends the runs of the looks that used to run past their clip inside it", { timeout: 120_000 }, () => {
+    const ENDS_BY_27: readonly string[] = ["neon-escape", "galaxy-pendulum", "sunset-shatter", "string-art", "rainbow-paint", "grand-prix", "matrix-grow", "neon-vortex", "countdown-squares", "squishy-orbs", "aurora-portals"];
+    for (const id of ENDS_BY_27) {
+      const preset = GALLERY.find((p) => p.id === id)!;
+      const params = new URLSearchParams(preset.query);
+      const seed = parseSeed(params.get("seed"))!;
+      params.delete("seed");
+      const run = simulate({ settings: settingsFromSearchParams(params), seed, seconds: 30, world: { width: 800, height: 450 } });
+      expect([id, run.finished, (run.finishSec ?? Infinity) <= 27]).toEqual([id, true, true]);
+      expect(preset.previewAt, id).toBeLessThan(run.finishSec!);
     }
   });
 

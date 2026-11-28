@@ -156,8 +156,8 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  * (Territory's countdown is 30 s on every seed, and Bouncing Orbs' rhythm field never ends: the page's 30 stays.) Only while the
  * mode's run fields are at their page pace (`clipPacingDefaults()`; the ring modes' glow is a look): a link that sets its own
  * course keeps the page's 30, and (--- pace-as-look ---) a bare link, which plays the link base, gets the target of the look
- * whose run it plays (`LOOK_FIND_SEC`: Pendulum Wave's 60 s cycle is galaxy-pendulum's run, Race's and Beat Runner's are their
- * Challenge looks', 1.17.0's deals; A-g2 review) or else the page's 30. Simulator.tsx sets it when the page starts a mode (a
+ * whose run it plays (`LOOK_FIND_SEC`: Pendulum Wave's 60 s cycle is the run of 1.17.0's galaxy-pendulum, Race's and Beat Runner's
+ * are their Challenge looks', 1.17.0's deals; A-g2 review) or else the page's 30. Simulator.tsx sets it when the page starts a mode (a
  * first visit, a mode picked), and (--- find-target-follows --- round two A2b) whenever another run comes onto the page while
  * the target is still the page's own.
  */
@@ -237,7 +237,11 @@ const START_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze(
 // --- find-target-follows --- (round two A2b)
 /** A look's own target: the fields that make its run (every one must match: the pace's or the start look's and the look's own) and the target measured on it. */
 interface LookFindTarget {
-  /** The look of the studio's Looks row it was measured on (src/content/looks.ts): the card, a gallery preset, the daily look. */
+  /**
+   * The look of the studio's Looks row it was measured on (src/content/looks.ts): the card, a gallery preset, the daily look;
+   * (--- gallery-in-clip --- round two A6) or "link" for a run only a link plays now: a bare `?mode=` (the link base) or a gallery
+   * preset's 1.17.0 link, whose look plays another run since.
+   */
   look: string;
   run: Partial<SimulatorSettings>;
   sec: number;
@@ -250,15 +254,22 @@ interface LookFindTarget {
  * or above the Find slider's 10 s (RANGES.findDuration's minimum) with the most runs within its ± 0.5 s (the first of a tie; A-g1
  * review: below it, the Bullseye card's 9.5 s, its run before round two A5, holds 112 runs of 200 and the Maze card's 7 s 24);
  * in brackets the runs within ± 0.5 s of 200, then those of the target the look would get without its entry. A fixed-length run
- * (Pendulum Wave's 60 s, the Polyrhythm's 12 s) gets its own length. (Not here: looks the page's 30 already finds – Grand Prix 30
- * of 200, Vortex's Challenge look 82, Red Maze Race 10, Aurora Portals 10 –, Portal's Challenge look, which is its link base
- * (16.5 s: 6, 30 s: 4; the link base keeps the page's 30), and the looks whose runs do not end in a clip, Neon Escape and the
- * endless ones.)
+ * (Pendulum Wave's 60 s, the Polyrhythm's 12 s) gets its own length. (Not here: looks the page's 30 already finds – Vortex's
+ * Challenge look 82, Red Maze Race 10 –, Portal's Challenge look, which is its link base (16.5 s: 6, 30 s: 4; the link base keeps
+ * the page's 30), and the endless looks.)
+ * --- gallery-in-clip --- (round two A6) The gallery's looks that end in their clip now, measured the same way: Neon Escape, Rainbow
+ * String Art, Paint the Circle, Matrix Growth, Squishy Pastel Orbs, Retro Countdown Squares and the Ten-Racer Grand Prix (A
+ * look's 12 seeds of tests/clipPacing.test.ts must land one run too: Retro Countdown Squares' 17.5 s, 40 of 200, lands none of
+ * them, so it takes 16 s, 38; the Grand Prix's 24 s lands one, the race pace's 22 s none.) Aurora Galaxy Wave, Neon Vortex and
+ * Aurora Portals play their mode's start look and take its target. The entries of their 1.17.0 runs stay for those links.
  */
 const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>> = Object.freeze({
-  classic: [{ look: "daily", run: { wallCount: 5, gapSize: 0.4, ballSpeed: 500 }, sec: 36 }], // (13; 30 s: 3) median 43.9 s
+  classic: [
+    { look: "daily", run: { wallCount: 5, gapSize: 0.4, ballSpeed: 500 }, sec: 36 }, // (13; 30 s: 3) median 43.9 s
+    { look: "neon-escape", run: { wallCount: 8, gapSize: 1, ballSpeed: 500 }, sec: 21 }, // --- gallery-in-clip --- (29; 18 s: 7) the start look's pace on eight rings
+  ],
   target: [{ look: "daily", run: { targetCount: 6, ballSpeed: 400 }, sec: 20 }], // (20; 30 s: 4)
-  pendulum: [{ look: "galaxy-pendulum", run: { pwCycleSeconds: 60, pwBaseOscillations: 51 }, sec: 60 }], // IN LINE! at 60.0 s on every seed
+  pendulum: [{ look: "link", run: { pwCycleSeconds: 60, pwBaseOscillations: 51 }, sec: 60 }], // IN LINE! at 60.0 s on every seed (--- gallery-in-clip --- a bare link and 1.17.0's galaxy-pendulum; the preset plays the page's 24 s since round two A6)
   polyrhythm: [{ look: "polygon-polyrhythm", run: { prCycleSeconds: 12, prTempos: "custom", prCustom: "3,4,5,6,7,8,9,10" }, sec: 12 }], // in phase at 12.0 s
   spiralGlass: [{ look: "card", run: { sgGlassHp: 1, sgSpeed: 1.2 }, sec: 19.5 }], // the card and Sunset Spiral (182; 24 s: 0)
   shatter: [{ look: "card", run: { ...SHATTER_PACE, ballRadius: 11 }, sec: 13 }], // (22; 15 s: 2)
@@ -270,8 +281,11 @@ const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>
     { look: "daily", run: { runnerObstacles: 24, runnerDensity: 0.6, runnerSpeed: 9, runnerJump: 2.6 }, sec: 32 }, // (44; 30 s: 20) median 32.1 s, 27.6–36.1 s
   ],
   // (A-g2 review) the Challenge look (glow on the link base, 1.17.0's deal) and a bare `?mode=race`: 1.17.0's eight screens
-  race: [{ look: "daily", run: { rcRacers: 8, rcTrackLength: 8, rcLaps: 1, rcWinner: -1 }, sec: 27.5 }], // (40; 30 s: 20) median 28.4 s, 23.5–37.0 s
-  vortex: [{ look: "neon-vortex", run: { vxRelease: "stagger", vxBalls: 20 }, sec: 41.5 }], // (98; 0)
+  race: [
+    { look: "daily", run: { rcRacers: 8, rcTrackLength: 8, rcLaps: 1, rcWinner: -1 }, sec: 27.5 }, // (40; 30 s: 20) median 28.4 s, 23.5–37.0 s
+    { look: "grand-prix", run: { rcRacers: 10, rcTrackLength: 6, rcLaps: 1, rcWinner: -1 }, sec: 24 }, // --- gallery-in-clip --- (44; 22 s: 39) ten racers on the pace's 6 screens
+  ],
+  vortex: [{ look: "link", run: { vxRelease: "stagger", vxBalls: 20 }, sec: 41.5 }], // (98; 0) (--- gallery-in-clip --- 1.17.0's neon-vortex; the preset plays the ring release since round two A6)
   bullseye: [
     // (--- card-looks --- round two A5: the card plays the start look's run, so the pace's 25; its earlier run, a shot every 0.4 s
     // and the bull on shot 2, had 10 here)
@@ -282,7 +296,16 @@ const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>
   // (A-g2 review) the Challenge look (pdsp=1 on the link base, 1.17.0's deal: lib/dailyCore.ts) plays this run too, and 19.5 s is
   // its best target as well (12 of 200; 30 s: 2), median 28.8 s
   paddle: [{ look: "sunset-keep-up", run: { pdGoal: 0, pdSpin: 1 }, sec: 19.5 }], // (12; 2) game over at 10–54 s
-  paint: [{ look: "rainbow-paint", run: { ballRadius: 14, ballSpeed: 400, paintGuide: false, gravity: 100 }, sec: 67.5 }], // (20; 0) full at 47–86 s
+  paint: [
+    { look: "link", run: { ballRadius: 14, ballSpeed: 400, paintGuide: false, gravity: 100 }, sec: 67.5 }, // (20; 0) full at 47–86 s (--- gallery-in-clip --- 1.17.0's rainbow-paint)
+    { look: "rainbow-paint", run: { ballRadius: 14, ballSpeed: 400, paintGuide: true, gravity: 100 }, sec: 24 }, // --- gallery-in-clip --- (34; 30 s: 10) full at 17.9–36.9 s
+  ],
+  // --- gallery-in-clip --- (round two A6)
+  lines: [{ look: "string-art", run: { ballSpeed: 800, ballRadius: 6, lnStrings: 64 }, sec: 21 }], // (112; 30 s: 0) over at 19.0–22.4 s
+  grow: [{ look: "matrix-grow", run: { growLaw: "multiply", growOnFill: "finish", growStep: 11, growStart: 5 }, sec: 14 }], // (92; 0) full at 11.7–14.9 s
+  collide: [{ look: "squishy-orbs", run: { cpPourAt: 14, cpAntiCollisionAt: 0, cpSyncStart: false }, sec: 21.5 }], // (80 of 80, seeds 1–40; 0) empty at 21.2–22.0 s
+  box: [{ look: "countdown-squares", run: { boxShapeCount: 4, boxGrowPerHit: 3, ballSpeed: 575, boxAspect: 0.56 }, sec: 16 }], // (38; 0) over at 14.1–21.5 s
+  // --- end gallery-in-clip ---
   illusion: [{ look: "hidden-heart", run: { ilStage: false, ilCycles: 0, ilType: "whitespace", ilPattern: "heart" }, sec: 21 }], // (78; 0)
   conveyor: [
     { look: "pastel-conveyor", run: { cvInterval: 1, cvMaxBalls: 12 }, sec: 21 }, // (93; 0)

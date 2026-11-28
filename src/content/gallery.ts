@@ -36,10 +36,13 @@ export interface GalleryPreset {
 }
 
 export const GALLERY: readonly GalleryPreset[] = [
+  // --- gallery-in-clip --- (round two A6) the start look's gap of 1.0 at ball speed 500 on its eight rings: 170 of 200 runs out by
+  // 27 s (seeds 1–100 in the laptop's and the phone's worlds; its old gap and speed: 0 of 12 by 45 s, its seed 499474398 out at
+  // 37.8 s); seed 8 is out at 17.9 s in the 800 × 450 world (17.2 s in a phone's 450 × 450), ESCAPED! at 15.9 s in the page
   {
     id: "neon-escape",
     mode: "classic",
-    query: "mode=classic&wc=8&tt=1.4&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&wbreak=all&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=499474398",
+    query: "mode=classic&s=500&wc=8&gap=1&tt=1.4&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&wbreak=all&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=8",
     previewAt: 5,
     name: { en: "Neon Escape", pl: "Neonowa ucieczka", es: "Escape de neón" },
     description: {
@@ -63,10 +66,12 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Siete anillos arcoíris con huecos anchos y una bola rápida. Cada anillo que rompe sube una nota y la salida cierra con un acorde.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the page's 24 s cycle written out (--- pace-as-look --- the link base's is 60 s): IN LINE!
+  // at 24.0 s on every seed, in both worlds
   {
     id: "galaxy-pendulum",
     mode: "pendulum",
-    query: "mode=pendulum&pwn=30&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
+    query: "mode=pendulum&pwn=30&pwk=20&pwt=24&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
     previewAt: 12,
     name: { en: "Aurora Galaxy Wave", pl: "Galaktyka zorzy", es: "Galaxia boreal" },
     description: {
@@ -116,10 +121,12 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Tres bolas de neón y doce filas de puertas x2, x3 y x5: mira cómo un puñado de bolas se convierte en cientos camino a casa.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the run ends at 64 strings with the finished picture and a chord (--- string-art ---): every
+  // run of seeds 1–100 is over at 19.0–22.4 s in both worlds (before: never); seed 1765313541 at 21.2 s
   {
     id: "string-art",
     mode: "lines",
-    query: "mode=lines&s=800&r=6&glow=1&rlines=1&seed=1765313541",
+    query: "mode=lines&s=800&r=6&lns=64&glow=1&rlines=1&seed=1765313541",
     previewAt: 20,
     name: { en: "Rainbow String Art", pl: "Tęczowy string art", es: "Arte de hilos arcoíris" },
     description: {
@@ -152,10 +159,12 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Doce cuadrados con barras de vida en una arena circular que se encoge: el más rápido hace el daño y gana el último que quede en pie.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) Guide to the Gaps (--- paint-full ---), so the counter reaches its 100 % inside the clip and
+  // FULL CANVAS! holds: 146 of 200 runs full by 27 s (before: seeds 1–12 full at 57–72 s); seed 2 full at 21.6 s in both worlds
   {
     id: "rainbow-paint",
     mode: "paint",
-    query: "mode=paint&g=100&r=14&glow=1&seed=914903224",
+    query: "mode=paint&g=100&r=14&glow=1&pgu=1&seed=2",
     previewAt: 14,
     name: { en: "Paint the Circle", pl: "Zamaluj koło", es: "Pinta el círculo" },
     description: {
@@ -205,7 +214,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "grand-prix",
     mode: "race",
-    query: "mode=race&glow=1&rcn=10&seed=1689637060" /* --- finales-in-clip --- (B6: the 8-screen track; --- pace-as-look --- the link base's, the start look has 6) */,
+    query: "mode=race&glow=1&rcn=10&rcl=6&seed=3" /* --- finales-in-clip --- (B6: the 8-screen track; --- pace-as-look --- the link base's, the start look has 6) --- gallery-in-clip --- (round two A6: the start look's 6 screens written out, 190 of 200 runs over by 27 s; seed 3 at 22.9 s in both worlds, the podium on screen by 20 s; its old seed on 8 screens ran 31.2 s) */,
     previewAt: 6,
     name: { en: "Ten-Racer Grand Prix", pl: "Grand Prix dziesięciu", es: "Gran Premio de diez" },
     description: {
@@ -214,11 +223,13 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Diez cuadrados caen por una pista de rebotadores, turbos y zonas de intercambio, con clasificación en directo, avisos de adelantamiento y podio.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the multiply law, the run ending at the fill (its own 11 % a bounce from 5 %, faster than
+  // Fill the Ring's start look): every run of seeds 1–100 full at 11.7–14.9 s in both worlds (before: never); seed 2004386250 at 14.2 s
   {
     id: "matrix-grow",
     mode: "grow",
-    query: "mode=grow&glow=1&rwalls=0&glines=1&cc=%2300ff41&bc=%23b7ffbf&bc2=%23008f11&lc=%2300ff41&theme=matrix&bg1=%23000a00&bg2=%23002200&ps=pixels&trc=%2300ff41%2C%23003b00&seed=2004386250",
-    previewAt: 14,
+    query: "mode=grow&glow=1&rwalls=0&glines=1&cc=%2300ff41&bc=%23b7ffbf&bc2=%23008f11&lc=%2300ff41&theme=matrix&bg1=%23000a00&bg2=%23002200&ps=pixels&trc=%2300ff41%2C%23003b00&gLaw=multiply&gFill=finish&seed=2004386250",
+    previewAt: 12.5,
     name: { en: "Matrix Growth", pl: "Wzrost w Matriksie", es: "Crecimiento Matrix" },
     description: {
       en: "A pale green ball in digital-rain colours grows with every bounce, strung to every hit, until there is no room left to move.",
@@ -255,22 +266,26 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Una pelota sale del anillo al instante y cada escape suma tres más. La cuenta se duplica una y otra vez hasta que el enjambre llega a 200 y el anillo estalla.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the start look's ring release written out: over at 22.5 s on every seed, in both worlds (the
+  // stagger of twenty ran 43.0 s). The ring release draws its own marbles and reads no ball count, so the faces and the twenty went
   {
     id: "neon-vortex",
     mode: "vortex",
-    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxn=20&seed=199343859" /* --- finales-in-clip --- (B6: the stagger release; --- pace-as-look --- the link base's, the start look plays the rings) */,
+    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxrl=rings&seed=199343859" /* --- finales-in-clip --- (B6: the stagger release; --- pace-as-look --- the link base's, the start look plays the rings) */,
     previewAt: 13,
     name: { en: "Neon Vortex", pl: "Neonowy wir", es: "Vórtice de neón" },
     description: {
-      en: "Twenty smiling balls spiral down a magenta whirlpool of sound rings. Each one a rising glissando, each swallow a pew.",
-      pl: "Dwadzieścia uśmiechniętych piłek schodzi spiralą w purpurowy wir dźwiękowych pierścieni. Każda to wznoszące się glissando, każde połknięcie to „piu”.",
-      es: "Veinte bolas sonrientes bajan en espiral por un remolino magenta de anillos sonoros: cada una es un glissando ascendente y cada tragada, un «piu».",
+      en: "Rainbow marbles drop into a magenta whirlpool in waves of 6, 12 and 24, each wave a perfect ring. Every lap plays a chime that climbs as the ring spins faster.",
+      pl: "Tęczowe kulki wpadają do purpurowego wiru falami po 6, 12 i 24, a każda fala to idealny pierścień. Każde okrążenie gra dzwonek, który idzie w górę, gdy pierścień przyspiesza.",
+      es: "Canicas arcoíris caen a un remolino magenta en oleadas de 6, 12 y 24, cada una un anillo perfecto. Cada vuelta toca una campanita que sube cuando el anillo acelera.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the start look's ball speed of 575: every run of seeds 1–100 over at 14.1–21.5 s in
+  // both worlds (at 400: 7 of 12 by 27 s); seed 1436349377 at 17.0 s
   {
     id: "countdown-squares",
     mode: "box",
-    query: "mode=box&bxn=4&bxgr=3&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&seed=1436349377",
+    query: "mode=box&s=575&bxn=4&bxgr=3&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&seed=1436349377",
     previewAt: 8,
     name: { en: "Retro Countdown Squares", pl: "Retro odliczanie", es: "Cuadrados en cuenta atrás" },
     description: {
@@ -303,16 +318,19 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Los pintores cubren la arena de negro esquivando una forma secreta: mira cómo el blanco se reduce hasta que solo queda un corazón.",
     },
   },
+  // --- gallery-in-clip --- (round two A6) the pour at 14 s (--- collide-pour ---), the orbs still colliding as they go: EMPTY! at
+  // 21.2–22.0 s on seeds 1–40 in both worlds (before: never); seed 1503023980 at 21.4 s, its picture the pour at 20 s (the jar, now
+  // up in the square to leave the heap room, from the first frame)
   {
     id: "squishy-orbs",
     mode: "collide",
-    query: "mode=collide&glow=1&rwalls=0&cpsq=1&cc=%23ffc8dd&bc=%23bde0fe&bc2=%23cdb4db&lc=%23ffafcc&theme=pastel&bgt=gradient&bg1=%232b2d42&bg2=%234a4e69&ps=petals&trc=%23a2d2ff%2C%23ffc8dd&seed=1503023980",
-    previewAt: 3,
+    query: "mode=collide&cppo=14&glow=1&rwalls=0&cpsq=1&cc=%23ffc8dd&bc=%23bde0fe&bc2=%23cdb4db&lc=%23ffafcc&theme=pastel&bgt=gradient&bg1=%232b2d42&bg2=%234a4e69&ps=petals&trc=%23a2d2ff%2C%23ffc8dd&seed=1503023980",
+    previewAt: 20,
     name: { en: "Squishy Pastel Orbs", pl: "Miękkie pastelowe kule", es: "Orbes pastel blanditos" },
     description: {
-      en: "Three hundred jelly-soft orbs squash and stretch against each other in a pastel circle, every collision a soft note pitched by size.",
-      pl: "Trzysta galaretowato miękkich kul zgniata się i rozciąga o siebie w pastelowym kole, a każde zderzenie to cicha nuta zależna od wielkości.",
-      es: "Trescientos orbes blandos como gelatina se aplastan y estiran entre sí en un círculo pastel, y cada choque es una nota suave según su tamaño.",
+      en: "Three hundred jelly-soft orbs squash and stretch in a pastel circle, every collision a soft note. Then the floor opens and they pour out, smallest first.",
+      pl: "Trzysta galaretowato miękkich kul zgniata się i rozciąga w pastelowym kole, a każde zderzenie to cicha nuta. Potem dno się otwiera i kule wysypują się, od najmniejszych.",
+      es: "Trescientos orbes blandos como gelatina se aplastan y estiran en un círculo pastel, y cada choque es una nota suave. Luego se abre el fondo y caen, los más pequeños primero.",
     },
   },
   // --- gallery-every-mode --- (Lane E, E2) a finished look for every mode that had none: each a measured run (the seed's end
@@ -344,10 +362,13 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   // --- gallery-every-mode --- seed 7: the run ends at 25.1 s of its 30 s clip in the 800 × 450 world (25.1 s in a phone's 450 × 450)
+  // --- gallery-in-clip --- (round two A6) the start look's run (--- portal-options --- five pairs of three jumps, the page's ball and
+  // wall, as the card since round two A5): 182 of 200 runs out by 27 s (the ball of 11 and wall of 5 with the old pairs: 4 of 12);
+  // seed 5 out at 16.9 s in both worlds, after 11 teleports
   {
     id: "aurora-portals",
     mode: "portal",
-    query: "mode=portal&r=11&wt=5&tt=1.6&glow=1&wglow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=7",
+    query: "mode=portal&tt=1.6&glow=1&wglow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&ptc=5&ptu=3&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=5",
     previewAt: 14,
     name: { en: "Aurora Portals", pl: "Portale zorzy", es: "Portales de aurora" },
     description: {
