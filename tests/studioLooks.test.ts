@@ -6,7 +6,7 @@ import { clipStartSettings } from "@/lib/clipPacing";
 import { DAILY_POOL } from "@/lib/dailyCore";
 import { GALLERY } from "@/content/gallery";
 import { LOOK_NAMES, looksOf, settingsQueryOf } from "@/content/looks";
-import { HERO_BASE_QUERY, HERO_MOMENTS, cardHref, cardQuery } from "@/lib/thumbnails/heroMoments";
+import { HERO_BASE_QUERY, HERO_MOMENTS, cardHref, cardQuery, heroQuery } from "@/lib/thumbnails/heroMoments";
 import { activeLook, cardLinkPatch, lookPatch, lookRow, lookSettings, selectedMode } from "@/lib/studioLooks";
 import { MAKE_CLIP_ENDING, makeClipPick, makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip";
 import { planTemplate } from "@/lib/bot/planner";
@@ -95,10 +95,23 @@ describe("the mode cards' links (card-looks)", () => {
   // the card leaves it out
   it("keeps the first visit's HUD on every mode's card", () => {
     const HUD = ["loopHud", "sbHud", "mzHud", "ogHud", "lcHud", "plPills", "plBadge"] as const;
+    // --- card-words --- (round two A-g3 review) every other HUD switch and HUD title too, so another HUD-off key of a picture
+    // cannot leak into its card unseen. Four dressings stay as the picture has them, by the plan (A5): the Maze's flashing-lights
+    // badge (mzbg=0, a style point on the later list: m3-maze-polish), Territory's (tybg=0: its card is its picture's query) and
+    // Land Claim's ball names and scoreboard (tn=0, tsb=0: A5 took only the picture's lch=0 out of its card)
+    const MORE_HUD = ["loopHudTitle", "loopHudSubtitle", "sbBadge", "sbTitle", "journeyHud", "sgHud", "tyHud", "tyBadge", "flHud", "bounceMathHud", "mzBadge", "efCounter", "bmCounter", "wtLabel", "rcCupTitle", "lcTitle", "nameLabel", "showBallNames", "showScoreboard"] as const;
+    const PICTURE_DRESSING: Partial<Record<ModeId, readonly (typeof MORE_HUD)[number][]>> = { maze: ["mzBadge"], territory: ["tyBadge"], landClaim: ["showBallNames", "showScoreboard"] };
     for (const id of MODE_IDS) {
       const s = settingsFromSearchParams(new URLSearchParams(cardQuery(id)));
       const first = startLook(id);
       for (const key of HUD) expect([id, key, s[key]]).toEqual([id, key, first[key]]);
+      const picture = settingsFromSearchParams(new URLSearchParams(heroQuery(id)));
+      for (const key of MORE_HUD) expect([id, key, s[key]]).toEqual([id, key, (PICTURE_DRESSING[id]?.includes(key) ? picture : first)[key]]);
+    }
+    // each kept dressing is one the picture turns off: none is a stale exception that would excuse a card
+    for (const [id, keys] of Object.entries(PICTURE_DRESSING) as [ModeId, readonly (typeof MORE_HUD)[number][]][]) {
+      const picture = settingsFromSearchParams(new URLSearchParams(heroQuery(id)));
+      for (const key of keys) expect([id, key, picture[key]]).not.toEqual([id, key, startLook(id)[key]]);
     }
   });
 });

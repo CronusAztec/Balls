@@ -2494,7 +2494,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   multiply: ["multiplySpawnCount", "respawnEvery", "swarmLimit", "multiplyRace" /* --- multiply-race --- */], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- the swarm's ceiling)
   lines: ["lnStrings" /* --- string-art --- */],
   paint: [...rangeKeys(PICTURE_PAINT_RANGES), "paintGuide" /* --- paint-full --- */],
-  target: ["targetCount"],
+  target: ["targetCount", "countdownRandom" /* --- agent-cli --- (round two A-g3 review: the countdown's order, a switch of the run; it engages nothing, and the modes tool lists it) */],
   portal: ["ptCount", "ptUses" /* --- portal-options --- */],
   shatter: ["shatterHits", "shatterSegments", "shatterEvenBricks"], // --- shatter-demolition --- (--- shatter-even-bricks ---; picks and a switch: none passes a slider, so they engage nothing, and the modes tool lists them)
   colorMatch: ["colorMatchColorCount", "colorMatchSegments" /* --- colour-match-segments --- (a pick) */],
@@ -2525,7 +2525,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   blueprint: [...BLUEPRINT_ENGINE_KEYS], // --- blueprint --- (the catalog entry, the link's spec and its slider values: every one is the run's)
   beatDrop: rangeKeys(BEAT_DROP_RANGES),
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
-  maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
+  maze: [...rangeKeys(MAZE_RANGES), "mzFirstOut" /* --- agent-cli --- (round two A-g3 review: the run ends at the first ball out; a switch engages nothing) */], // --- odd-maze ---
   conveyor: rangeKeys(CONVEYOR_RANGES), // --- gerald-conveyor ---
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
   fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
@@ -2763,6 +2763,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.multiplyRace = typeof preset.multiplyRace === "boolean" ? preset.multiplyRace : defaults.multiplyRace; // --- review fix (B5) --- (a real boolean, like the link's mrace: 1 or "false" falls back to the default)
   merged.growCenterDot = typeof preset.growCenterDot === "boolean" ? preset.growCenterDot : defaults.growCenterDot; // --- review fix (B5) --- (Grow's two switches too)
   merged.growLines = typeof preset.growLines === "boolean" ? preset.growLines : defaults.growLines;
+  merged.countdownRandom = typeof preset.countdownRandom === "boolean" ? preset.countdownRandom : defaults.countdownRandom; // --- agent-cli --- (round two A-g3 review: Target's random order, a real boolean like the link's random=1)
   merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
   for (const key of ["topText", "bottomText", "watermarkText"] as const) {
     const text = preset[key] as unknown;

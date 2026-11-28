@@ -203,6 +203,24 @@ describe("mode catalog (--- agent-cli ---)", () => {
       expect([mode, uncappedEngaged(s), pastAnyMemoryCeiling(s)]).toEqual([mode, false, false]);
     }
   });
+
+  // --- agent-cli --- (round two A-g3 review) a switch of the run is an engine key: Target has no block of its own, so its random
+  // order is listed only through it (MODES.md row 19), and the Maze's first ball out, which its start look turns on, reads engine
+  it("--- agent-cli --- marks Target's random order and the Maze's first ball out as engine keys, kept by a link and engaging nothing", () => {
+    const field = (mode: string, key: string) => modeDetail(mode, en)?.fieldList.find((f) => f.key === key);
+    expect(field("target", "countdownRandom")).toEqual({ key: "countdownRandom", default: false, range: null, url: "random", engine: true, roundTrip: true, resolved: true });
+    expect(field("maze", "mzFirstOut")).toEqual({ key: "mzFirstOut", default: false, range: null, url: "mzfo", engine: true, roundTrip: true, resolved: true });
+    for (const mode of ["target", "maze"]) expect(modeDetail(mode, en)?.linkProblems, mode).toEqual([]);
+    expect(new URLSearchParams(startQuery("maze")).get("mzfo")).toBe("1");
+    const on: [string, Partial<SimulatorSettings>][] = [["target", { countdownRandom: true }], ["maze", { mzFirstOut: true }]];
+    for (const [mode, patch] of on) {
+      const s = { ...defaultSettings(mode as "target" | "maze"), ...patch };
+      expect([mode, uncappedEngaged(s), pastAnyMemoryCeiling(s)]).toEqual([mode, false, false]);
+    }
+    // presetToSettings keeps a real boolean and folds another value back to the default, as the link reader reads only random=1
+    expect(presetToSettings({ mode: "target", countdownRandom: true }).countdownRandom).toBe(true);
+    expect(presetToSettings({ mode: "target", countdownRandom: "yes" as unknown as boolean }).countdownRandom).toBe(false);
+  });
   // --- end pace-as-look ---
 });
 

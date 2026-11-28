@@ -2609,9 +2609,11 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   line says what it measured), and `cardSeed: false` leaves the seed out where its run does not end inside the clip with its
   holds (Square Battle Royale, Sound Vortex). The studio's Looks row offers the same look as As pictured (`src/content/looks.ts`,
   `src/lib/studioLooks.ts`, `tests/studioLooks.test.ts`). --- card-words --- (round two A5) A card leaves out the picture's
-  switches that hide the first visit's words (`lh=0`, `sbh=0`, `mzhud=0`, `ogHud=0`, `lch=0`, `plb=none`, `plp=0`), so every
-  card opens its title, counter, rule pills and badge (the test checks all 50 modes), and a paced mode's card names its pace,
-  since a key it leaves out reads the link base.
+  switches that hide the first visit's words (`lh=0`, `sbh=0`, `mzhud=0`, `ogHud=0`, `lch=0`, `plb=none`, `plp=0`), so a card
+  opens the first visit's title, counter, rule pills and Power Layers' corner badge, and a paced mode's card names its pace,
+  since a key it leaves out reads the link base. Four dressings stay as the picture has them: the Maze's and Territory's
+  flashing-lights badges (`mzbg=0`, `tybg=0`) and Land Claim's ball names and scoreboard (`tn=0`, `tsb=0`). The test checks
+  every other HUD switch on all 50 modes.
 - **Tests** – `tests/modeThumbnails.test.ts`: a hero moment for every `MODE_IDS` id and nothing else, complete entries, links
   that open their mode with glow, trails and their seed and no caption, text or watermark, every own key changing the run (no
   typo, no no-op), the frame's geometry and budget, the still schedule, the pictures on disk (WebP, 480 × 480, under 60 KB), the

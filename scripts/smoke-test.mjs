@@ -2180,7 +2180,8 @@ check("find simulation completes", found, `(${resultText})`);
 }
 // --- pace-as-look --- (round two A4a, the attack's break 3) Reset All on a bare `?mode=paddle` goes back to the page's start
 // look (a goal of 20 catches: lib/clipPacing.ts PADDLE_PACE), and Find's target follows the run: the bare link plays the link
-// base (no goal), whose target is sunset-keep-up's 19.5 s (LOOK_FIND_SEC), and the start look searches for its own 28 s
+// base (no goal, a spin of 0.6), which no look's run matches, so it keeps the page's 30 s, and the start look searches for its own
+// 28 s (--- review fix --- round two A-g3: the bare field is checked as 30, as measured, not only as not 28)
 {
   await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
   const field = page.locator("#find-duration");
@@ -2190,8 +2191,8 @@ check("find simulation completes", found, `(${resultText})`);
   await page.waitForFunction(() => document.querySelector("#find-duration")?.value === "28", null, { timeout: 15000 }).catch(() => {});
   const reset = await read();
   check(
-    "find simulation: Reset All on a bare Paddle Keep-Up link goes back to the start look (a goal of 20) and the finder's field reads its 28 s",
-    bare.pdg === null && bare.field !== "28" && reset.pdg === "20" && reset.field === "28" && /Find 28s Simulation/.test(reset.label),
+    "find simulation: Reset All on a bare Paddle Keep-Up link (the link base's 30 s) goes back to the start look (a goal of 20) and the finder's field reads its 28 s",
+    bare.pdg === null && bare.field !== "28" && bare.field === "30" && /Find 30s Simulation/.test(bare.label) && reset.pdg === "20" && reset.field === "28" && /Find 28s Simulation/.test(reset.label),
     `(bare ${JSON.stringify(bare)}, after Reset All ${JSON.stringify(reset)})`,
   );
 }
@@ -11330,7 +11331,7 @@ await smokeBlock("odd-maze", async () => {
   check("search finds the maze controls", found && hidden, `(fog=${found}, ball speed hidden=${hidden})`);
 }
 {
-  // The default race: three explorers in a 12 × 17 maze. (--- pace-as-look --- round two A4a: the page's start look, its 14 columns,
+  // The start look's race: three explorers in a 14 × 20 maze. (--- pace-as-look --- round two A4a: the page's start look, its 14 columns,
   // 25 s and first ball out written out (lib/studioLooks.ts startQuery); a bare link plays the link base's 12 × 17)
   await page.goto(`${BASE}/en/simulator/?mode=maze&mzc=14&mzd=25&mzfo=1`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
