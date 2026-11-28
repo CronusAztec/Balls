@@ -46,7 +46,7 @@ export interface AgentToolSpec {
  */
 export const LINK_MAX_CHARS = 20_000;
 const link: JsonSchema = { type: "string", minLength: 1, maxLength: LINK_MAX_CHARS, description: "A share link of the simulator (https://…/simulator/?mode=…&seed=…, a ?c= short link, or just its query string). Never fetched: only its parameters are read." };
-const mode: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A mode id (see the modes tool); its default settings. Give link or mode, not both." };
+const mode: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A mode id (see the modes tool); its default settings, the link base a bare ?mode= link reads (the page starts a mode in its start look: the modes tool's startQuery, given as link). Give link or mode, not both." };
 const seed: JsonSchema = { type: "integer", minimum: -2147483648, maximum: 4294967295, description: "The run's seed (default: the link's seed=, else 1)." };
 const out: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A folder name under .agent-out/<tool>/ for the files (default: one named after the request)." };
 const build: JsonSchema = { type: "string", enum: ["auto", "reuse", "force"], description: "The local export: auto (default) rebuilds when the working tree changed since the last build, reuse takes the last build as it is, force always rebuilds." };
@@ -166,7 +166,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "modes",
     title: "Mode catalog",
-    description: "Every mode: id, family, English name, settings prefix and field count. With {mode}: that mode's fields with default, slider range, share-link key and whether the engine reads it.",
+    description: "Every mode: id, family, English name, settings prefix, field count and startQuery, the page's start look as a link (the run the page starts the mode in). With {mode}: that mode's fields with default (the link base, what a bare ?mode= link reads), slider range, share-link key and whether the engine reads it.",
     input: { type: "object", additionalProperties: false, properties: { mode } },
     writes: "none",
     network: "none",
@@ -176,7 +176,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "simulate",
     title: "Simulate a seed headlessly",
-    description: "Runs one seed of a share link (or a mode's defaults) in Node exactly as the seed finder does and returns finished / finishSec (the finder's time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. Deterministic.",
+    description: "Runs one seed of a share link (or a mode's defaults, its link base; the page's own first run is the modes tool's startQuery as link) in Node exactly as the seed finder does and returns finished / finishSec (the finder's time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. Deterministic.",
     input: {
       type: "object",
       additionalProperties: false,

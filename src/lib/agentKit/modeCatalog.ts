@@ -5,6 +5,9 @@ import { SETTING_OPTIONS, modeBlockSettings } from "@/lib/desktop/ai/settingsPat
 import { jsonView, type JsonValue } from "./jsonView";
 import { encodeBlueprint } from "@/lib/blueprint/codec"; // --- review fix (blueprint) ---
 import { catalogBlueprint } from "@/lib/blueprint/catalog"; // --- review fix (blueprint) ---
+import { startQuery } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A4b)
+import { SHATTER_HIT_CHOICES, SHATTER_SEGMENT_CHOICES } from "@/lib/physics/modes/shatter"; // --- agent-cli --- (round two A4b: the picks)
+import { COLOR_MATCH_SEGMENT_CHOICES } from "@/lib/physics/modes/colorMatch"; // --- agent-cli --- (round two A4b: the picks)
 
 /*
  * --- agent-cli --- `npm run agent -- modes`: the mode catalog as an agent needs it – every MODE_ID with its family
@@ -16,6 +19,10 @@ import { catalogBlueprint } from "@/lib/blueprint/catalog"; // --- review fix (b
  *  - the link key of a field: the parameter settingsToSearchParams() writes when only that field leaves the mode's default;
  *  - whether a link keeps the field (settingsFromSearchParams() reads back the value the writer wrote: MODES.md rows 17 and
  *    18) and whether presetToSettings() resolves it (a wrong-typed value comes back as a value of the field's type: row 20).
+ * (--- pace-as-look --- round two A4b) A field's `default` is the link base (`defaultSettings`): what a bare `?mode=` link, a
+ * share code, a project file and a preset that leaves the field out read, and what `simulate` with `mode` runs. The page
+ * itself starts a mode in its start look, the link base with the pace on top: each mode's `startQuery` (lib/studioLooks.ts) is
+ * that look as a link, the one the site's own links into the mode open.
  */
 
 /** The English messages (messages/en.json): only `Modes.<id>.name` and `.description` are read. */
@@ -39,6 +46,11 @@ export interface ModeSummary {
   fieldSource: "block" | "engine";
   /** Settings a run of the mode hands its engine (the core physics included). */
   engineKeys: number;
+  /**
+   * --- pace-as-look --- (round two A4b) The page's start look as a link's query (`mode=…` and the fields it sets apart from
+   * the link base): the run the page starts the mode in, as `simulate` plays it with `link`. `mode` alone plays the link base.
+   */
+  startQuery: string;
 }
 
 export interface ModeField {
@@ -66,6 +78,22 @@ const TEXT_SAMPLES: Readonly<Record<string, () => string>> = {
   blParams: () => "3",
   blSpec: () => encodeBlueprint(catalogBlueprint("conquer")),
 };
+
+/**
+ * --- agent-cli --- (round two A4b) The numbers that take one of a list (a pick, never a slider): another value to try is
+ * another entry of the list, as the panel offers it; a step away is no legal value, and presetToSettings() folds it back.
+ */
+const NUMERIC_PICKS: Readonly<Record<string, readonly number[]>> = {
+  shatterHits: SHATTER_HIT_CHOICES,
+  shatterSegments: SHATTER_SEGMENT_CHOICES,
+  colorMatchSegments: COLOR_MATCH_SEGMENT_CHOICES,
+};
+
+/** --- agent-cli --- (round two A4b) A pick's other entries, nearest first. */
+function otherPicks(key: string, value: number): number[] | null {
+  const picks = NUMERIC_PICKS[key];
+  return picks ? picks.filter((v) => v !== value).sort((a, b) => Math.abs(a - value) - Math.abs(b - value)) : null;
+}
 
 /** --- review fix (blueprint) --- The fields a mode's links carry that its block does not list (they are never a patch's). */
 const LINK_ONLY_FIELDS: Readonly<Partial<Record<ModeId, readonly string[]>>> = { blueprint: ["blSpec"] };
@@ -129,6 +157,8 @@ const rangeOf = (key: string): ModeField["range"] => {
 function perturbed(key: string, value: unknown): unknown {
   if (typeof value === "boolean") return !value;
   if (typeof value === "number") {
+    const picks = otherPicks(key, value); // --- agent-cli --- (round two A4b)
+    if (picks) return picks[0] ?? null;
     const r = rangeOf(key);
     const step = r && r.step > 0 ? r.step : 1;
     const up = value + step;
@@ -160,9 +190,11 @@ export interface LinkIo {
 
 const SITE_IO: LinkIo = { write: settingsToSearchParams, read: settingsFromSearchParams, preset: presetToSettings };
 
-/** Other legal values of a field to try, nearest first: one step up or down (then two, three, four), the other boolean, the other options. */
+/** Other legal values of a field to try, nearest first: one step up or down (then two, three, four), a pick's other entries, the other boolean, the other options. */
 function candidates(key: string, value: unknown): unknown[] {
   if (typeof value === "number") {
+    const picks = otherPicks(key, value); // --- agent-cli --- (round two A4b)
+    if (picks) return picks;
     const r = rangeOf(key);
     const step = r && r.step > 0 ? r.step : 1;
     const out: number[] = [];
@@ -231,6 +263,7 @@ function summaryOf(mode: ModeId, messages: EnMessages): ModeSummary {
     fields: fields.keys.length,
     fieldSource: fields.source,
     engineKeys: engineSettingKeys(mode).length,
+    startQuery: startQuery(mode), // --- pace-as-look --- (round two A4b)
   };
 }
 

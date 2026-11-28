@@ -2496,8 +2496,8 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   paint: [...rangeKeys(PICTURE_PAINT_RANGES), "paintGuide" /* --- paint-full --- */],
   target: ["targetCount"],
   portal: ["ptCount", "ptUses" /* --- portal-options --- */],
-  shatter: [],
-  colorMatch: ["colorMatchColorCount"],
+  shatter: ["shatterHits", "shatterSegments", "shatterEvenBricks"], // --- shatter-demolition --- (--- shatter-even-bricks ---; picks and a switch: none passes a slider, so they engage nothing, and the modes tool lists them)
+  colorMatch: ["colorMatchColorCount", "colorMatchSegments" /* --- colour-match-segments --- (a pick) */],
   grow: ["growRate"],
   drop: rangeKeys(DROP_RANGES),
   box: rangeKeys(BOX_RANGES),

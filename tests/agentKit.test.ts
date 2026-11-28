@@ -12,7 +12,8 @@ import { POST_LIST_OLDER, POST_LIST_SETTINGS, POST_ROUTE_OLDER, ageHours, errorK
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { simulateSeed } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
-import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
+import { startQuery, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A4b)
 import { PROMPT_HIDDEN, assistantSettings } from "@/lib/desktop/ai/settingsPatch"; // --- unlimited-sizes ---
 import en from "../messages/en.json";
 
@@ -168,6 +169,41 @@ describe("mode catalog (--- agent-cli ---)", () => {
       expect(detail.fieldList.map((f) => f.key), mode).toEqual(expect.arrayContaining(prompt));
     }
   });
+
+  // --- pace-as-look --- (round two A4b)
+  it("--- pace-as-look --- prints every mode's start look as a link, the run the page starts it in, while a field's default stays the link base", () => {
+    const list = modeCatalog(en);
+    for (const m of list) {
+      expect([m.id, m.startQuery]).toEqual([m.id, startQuery(m.id)]);
+      expect(settingsFromSearchParams(new URLSearchParams(m.startQuery)), m.id).toEqual(startSettings(m.id));
+    }
+    // Race's pace is a track of 6 screens: the start look names it, the field's default is the link base's 8 (a bare ?mode=race)
+    expect(list.find((m) => m.id === "race")?.startQuery).toBe("mode=race&rcl=6");
+    expect(modeDetail("race", en)?.fieldList.find((f) => f.key === "rcTrackLength")).toMatchObject({ default: 8, url: "rcl" });
+    expect(modeDetail("race", en)?.startQuery).toBe("mode=race&rcl=6");
+    // a mode without a start look prints its bare link
+    expect(list.find((m) => m.id === "drop")?.startQuery).toBe("mode=drop");
+  });
+
+  it("--- agent-cli --- lists Shatter's picks and switch and Color Match's segments, each with its link key and kept by a link (code-5)", () => {
+    const field = (mode: string, key: string) => modeDetail(mode, en)?.fieldList.find((f) => f.key === key);
+    expect(field("shatter", "shatterHits")).toEqual({ key: "shatterHits", default: 1, range: null, url: "shh", engine: true, roundTrip: true, resolved: true });
+    expect(field("shatter", "shatterSegments")).toEqual({ key: "shatterSegments", default: 18, range: null, url: "shs", engine: true, roundTrip: true, resolved: true });
+    expect(field("shatter", "shatterEvenBricks")).toEqual({ key: "shatterEvenBricks", default: false, range: null, url: "shb", engine: true, roundTrip: true, resolved: true });
+    expect(field("colorMatch", "colorMatchSegments")).toEqual({ key: "colorMatchSegments", default: 12, range: null, url: "cms", engine: true, roundTrip: true, resolved: true });
+    expect(field("colorMatch", "colorMatchColorCount")).toMatchObject({ default: 7, url: "cmc", roundTrip: true });
+    for (const mode of ["shatter", "colorMatch"]) expect(modeDetail(mode, en)?.linkProblems, mode).toEqual([]);
+    // the start looks set them by those keys (Shatter's pace: 6 rings of 36 two-hit segments in even bricks; Color Match's 8 segments)
+    expect(startQuery("shatter")).toBe("mode=shatter&wc=6&shh=2&shs=36&shb=1");
+    expect(new URLSearchParams(startQuery("colorMatch")).get("cms")).toBe("8");
+    // picks and a switch pass no slider: at their largest they engage no extreme-values machinery and no ARENA FULL
+    const largest: [string, Partial<SimulatorSettings>][] = [["shatter", { shatterHits: 5, shatterSegments: 36, shatterEvenBricks: true }], ["colorMatch", { colorMatchSegments: 24 }]];
+    for (const [mode, patch] of largest) {
+      const s = { ...defaultSettings(mode as "shatter" | "colorMatch"), ...patch };
+      expect([mode, uncappedEngaged(s), pastAnyMemoryCeiling(s)]).toEqual([mode, false, false]);
+    }
+  });
+  // --- end pace-as-look ---
 });
 
 describe("explain (--- agent-cli ---)", () => {

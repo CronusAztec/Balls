@@ -20,8 +20,8 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 
 | Tool | What it returns | Example |
 | --- | --- | --- |
-| `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). A field only a link sets, never a slider or a patch, is listed too and marked `linkOnly` (Mode Lab's `blSpec`, link key `bls`). The switches every mode shares are not a mode's fields and are not listed: Wide sliders (`inf=0`) and Slow motion (`smo=0`). | `{"mode":"mergeRing"}` |
-| `simulate` | One seed of a link or a mode, run in Node exactly as the seed finder runs it. It returns `finished` and `finishSec` (the finder's own time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. | `{"mode":"spiralGlass","seed":12345,"seconds":10}` |
+| `modes` | Every mode: id, family, English name, settings prefix, field count and `startQuery`, the page's start look as a link (the run the page starts the mode in). With `mode`: each field's default (the link base), slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). A field only a link sets, never a slider or a patch, is listed too and marked `linkOnly` (Mode Lab's `blSpec`, link key `bls`). The switches every mode shares are not a mode's fields and are not listed: Wide sliders (`inf=0`) and Slow motion (`smo=0`). | `{"mode":"mergeRing"}` |
+| `simulate` | One seed of a link or a mode (its link base), run in Node exactly as the seed finder runs it. It returns `finished` and `finishSec` (the finder's own time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. | `{"mode":"spiralGlass","seed":12345,"seconds":10}` |
 | `fingerprint` | A mode's fingerprint by the `tests/extras.test.ts` recipe (seed 12345, 600 frames) and its diff against that file's BASELINE entry. Without `mode`: every mode, equal or not. | `{"mode":"classic"}` |
 | `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. With `image`, also the sheet as one JPEG of at most 110,000 bytes, in the result as base64 (an MCP image block). | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
 | `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. With `plan` (a studio's `.agent-out/studio/<studio>/plan.json`) and `clip`: that planned clip as the crew left it, its melody played, into the studio's folder with its frames' sheets and its scores after the render (render v3, `docs/agents/STUDIO.md`); with `fixed` too, the fix the crew offered after its render, as a clip of its own (`<clip>-fixed`). | `{"mode":"classic","seed":42,"seconds":10}`, `{"plan":".agent-out/studio/rings/plan.json","clip":"ep001-1-…"}` |
@@ -50,6 +50,14 @@ A run is named by `link` (a share link, a `?c=` short link or just its query str
 (its defaults). The seed is the call's `seed`, else the link's `seed=`, else 1. A link may be 20,000 characters long, so
 the link `bp-link` writes for a Blueprint at the 6 KB ceiling (a code of about 8,000 characters) plays in `simulate`,
 `preview` and `render` as it is.
+
+A mode's defaults are its link base (`defaultSettings`): what a bare `?mode=` link, a share code, a project file and a preset
+that leaves a field out read, so a link made before a mode's pace reads the settings it read then. They are not always the
+run a visitor sees first. The page starts a mode in its start look, the link base with the mode's pace on top
+(`clipStartSettings` in `src/lib/clipPacing.ts`): a mode picked on the page, Reset, and the site's own links into the mode
+open it. The `modes` tool prints it for every mode as `startQuery`, and `mode` alone never plays it. To simulate, preview,
+render or score the page's first run, pass that query as `link`, for example `{"link":"mode=race&rcl=6","seed":1}`. A
+field's `default` in the `modes` tool is the link base too.
 
 `simulate` and `fingerprint` are deterministic: the same call gives byte-identical JSON. `simulate` runs the finder's
 nominal 800 × 600 world unless `world` says otherwise. The page's canvas is usually another size, so a seed found on the

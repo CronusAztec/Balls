@@ -53,8 +53,19 @@ in `tests/slowMotionPhysics.test.ts` lists the files that read it: add the new o
 | 16 | `src/lib/settings.ts` | `...<NAME>_RANGES,` | The spread in `RANGES`. | **typed**: the section reads `RANGES.<px>…` |
 | 17 | `src/lib/settings.ts` | `write<Name>Params(settings, base, params)` | The link writer in `settingsToSearchParams`. It writes only values that differ from the mode's defaults. | **none** (only the mode's own test) |
 | 18 | `src/lib/settings.ts` | `read<Name>Params(params, settings)` | The link reader in `settingsFromSearchParams`. | **none** (only the mode's own test) |
-| 19 | `src/lib/settings.ts` | `MODE_ENGINE_KEYS`, `<id>: rangeKeys(<NAME>_RANGES)` | The restart keys. A visual key, such as a rainbow switch, applies live and is left out. | **typed** (`Record<ModeId, …>`) |
+| 19 | `src/lib/settings.ts` | `MODE_ENGINE_KEYS`, `<id>: rangeKeys(<NAME>_RANGES)` | The restart keys. A visual key, such as a rainbow switch, applies live and is left out. A pick or a switch of the run belongs here too: for a mode without a block of its own (row 25), these keys are the fields the `modes` tool lists. | **typed** (`Record<ModeId, …>`) |
 | 20 | `src/lib/settings.ts` | `Object.assign(merged, resolve<Name>Fields(merged))` | The resolver in `presetToSettings`, the final word for links, presets, project files and share codes. | **none** |
+
+A pace never goes into the defaults. `defaultSettings()` is the link base: every link, share code, project file and preset
+that leaves a field out reads it, so a default that moves changes the run of every link made before. The mode's own
+`DEFAULT_<NAME>_SETTINGS` are what the engine runs without a setter, the fingerprint's recipe among them. A mode whose
+default run does not end inside the default 30 s clip gets its pace in `clipPacingDefaults()` (`src/lib/clipPacing.ts`),
+which `clipStartSettings()` returns: the page starts the mode in it (`startSettings` and `startQuery` in
+`src/lib/studioLooks.ts`), and Reset and the site's own links into the mode open it. A card, a gallery look or a daily look
+of a paced mode names the pace in its query, since a bare key reads the link base (`tests/linkBase.test.ts`). The app's AI
+makes a custom mode as a base mode plus a settings patch (`src/lib/desktop/ai/customMode.ts`). From another mode the page
+switches to the base mode in its start look and then applies the patch, so a custom mode saved on a paced base mode before
+its pace now plays with the pace under its patch: a decision the owner reviews.
 
 ## The finder, the bot and the app's AI
 
@@ -170,8 +181,9 @@ into another one.
   the engine reads them (row 19). It also writes another value of each field into a link and reads it back (`roundTrip`:
   rows 17 and 18), and hands `presetToSettings` a value of the wrong type (`resolved`: row 20); `linkProblems` names every
   field that fails either. Rows 14 to 16 are typed.
-- `npm run -s agent -- simulate --json '{"mode":"<id>","seed":1,"seconds":30}'` runs a seed as the finder does. Run it
-  twice: the output must be byte-identical.
+- `npm run -s agent -- simulate --json '{"mode":"<id>","seed":1,"seconds":30}'` runs a seed as the finder does, on the link
+  base. Run it twice: the output must be byte-identical. For a mode with a start look, the `modes` tool's `startQuery`
+  given as `link` plays the page's first run.
 - `npm run -s agent -- fingerprint --json '{"mode":"<id>"}'` prints the fingerprint to put in `BASELINE`, once the mode
   plays the way you want.
 - `npm run -s agent -- preview --json '{"mode":"<id>","times":[1,5,10]}'` shows the mode on the real page, watermarked.

@@ -1108,12 +1108,14 @@ const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
 
 // --- templates --- why a binding is in the experimental table
 /**
- * --- templates --- (studio round 1, 10) Perfect Fit's box is full from its last piece's landing to its burst, the 0.15 s of its flash
- * (polyominoPlan.ts PF_FLASH_SEC; on the beat, a beat's share of it): the scatter and the fade after it show the pieces flying out of
- * an emptying box, and the next loop's tray fading in. So a resolved clip shows the full box – the fill format's promise – for that
- * flash only, under the 0.8 s the crew's G2 asks a payoff to be shown, as Paint's fill (the recorder's 0.5 s) and Grow's fill that
- * ends its run; and its "Full!" came at the half second before the box was full, the last piece still falling (watched). No setting
- * holds the box full longer: 0 of 12 plans pass (G2, the payoff's state held 0.1 s).
+ * --- templates --- (studio round 1, 10) Perfect Fit's box was full from its last piece's landing to its burst, the 0.15 s of its
+ * flash then (polyominoPlan.ts PF_FLASH_SEC; on the beat, a beat's share of it): the scatter and the fade after it showed the pieces
+ * flying out of an emptying box, and the next loop's tray fading in. So a resolved clip showed the full box – the fill format's
+ * promise – for that flash only, under the 0.8 s the crew's G2 asks a payoff to be shown, as Paint's fill (the recorder's 0.5 s) and
+ * Grow's fill that ends its run were then; and its "Full!" came at the half second before the box was full, the last piece still
+ * falling (watched). No setting held the box full longer: 0 of 12 plans passed (G2, the payoff's state held 0.1 s).
+ * (--- finales-in-clip --- B6; round two A4b) The box has been held 0.85 s since B6 (PF_FLASH_SEC) and G2 passes on the 3 plans
+ * measured, but the binding stays hidden until a review watches its plans' renders again (PERFECT_FIT_FLASH below says the same).
  */
 /**
  * --- templates --- (studio2 review round 2, 17) Bouncing Shapes' payoff is the first shape at zero, and the mode draws a stopped shape

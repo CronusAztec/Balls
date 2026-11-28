@@ -105,8 +105,10 @@ const NONE: Partial<SimulatorSettings> = Object.freeze({});
  */
 const MERGE_RING_PACE: Partial<SimulatorSettings> = Object.freeze({ mrInterval: 0.4, mrSpawnTiers: 3, mrGravity: 3 });
 /**
- * --- territory-swing --- Territory's page pace: a power every 2 s with a reach of 4 tiles (the mode's own 3 and 3 stay, so the
- * bot's plans, which carry every mode's fields, are what they were).
+ * --- territory-swing --- Territory's page pace: a power every 2 s with a reach of 4 tiles. (--- pace-as-look --- round two A4b)
+ * The mode's own 3 and 3 stay its link base, what a bare link reads; the bot's who-wins-territory template plays this pace and
+ * names it in its own settings and links (bot/templates.ts territorySettings: tyRadius 4, tyPowerEvery 2). No playbook recipe
+ * plays the mode (the one called territory plays Capture the Flag).
  */
 const TERRITORY_PACE: Partial<SimulatorSettings> = Object.freeze({ tyRadius: 4, tyPowerEvery: 2 });
 /**
